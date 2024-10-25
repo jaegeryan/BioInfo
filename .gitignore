@@ -148,3 +148,37 @@ dmypy.json
 *.old
 *.backup
 *.~*
+
+# Codon
+*.codon
+.codon/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test data
+*.fa
+*.fasta
+*.fastq
+*.fq
+*.sam
+*.bam
+*.paf
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Output files
+output/
+results/
+temp/
+
+# Virtual Environment
+venv/
+ENV/
