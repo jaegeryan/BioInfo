@@ -1,0 +1,52 @@
+from bio import *  
+import sys  
+from src.sketch import Minimizer  
+from src.index import Index  
+from src.chain import Chain  
+from src.align import Aligner  
+from src.utils import read_fasta, read_fastq  
+
+def main():  
+    """  
+    Main function for minimap2 implementation  
+    Usage: codon main.codon <ref.fa> <query.fq> > approx-mapping.paf  
+    """  
+    if len(sys.argv) != 3:  
+        print("Usage: codon main.codon <ref.fa> <query.fq> > approx-mapping.paf")  
+        sys.exit(1)  
+    
+    # Read input files  
+    ref_file = sys.argv[1]  
+    query_file = sys.argv[2]  
+    
+    # Read reference sequences  
+    references = read_fasta(ref_file)  
+    
+    # Build index  
+    index = Index()  
+    for header, seq in references:  
+        index.build(seq)  
+    
+    # Process queries  
+    queries = read_fastq(query_file)  
+    
+    # Initialize components  
+    chain = Chain()  
+    aligner = Aligner()  
+    
+    # Process each query  
+    for qheader, qseq in queries:  
+        # Find matches  
+        matches = index.query(qseq)  
+        
+        # Chain matches  
+        chains = chain.chain_anchors(matches)  
+        
+        # Align and output results  
+        for ref_header, ref_seq in references:  
+            for chain in chains:  
+                alignment = aligner.align(qseq, ref_seq, chain)  
+                print(alignment)  # Will be redirected to approx-mapping.paf  
+
+if __name__ == "__main__":  
+    main()

@@ -1,0 +1,22 @@
+class Aligner:
+    """
+    Class for sequence alignment
+    """
+    def __init__(self):
+        """
+        Initialize alignment parameters
+        """
+        pass
+
+    def align(self, query: str, reference: str, chain: List[Tuple[int, int, int]]) -> str:
+        """
+        Align sequences based on chain
+        Args:
+            query: Query sequence
+            reference: Reference sequence
+            chain: Anchor chain
+        Returns:
+            PAF format alignment string
+        """
+        # TODO: Implement alignment
+        pass

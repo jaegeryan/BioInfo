@@ -1,0 +1,26 @@
+from bio import *
+
+class Minimizer:
+    """
+    Class for computing minimizers from sequences
+    """
+    def __init__(self, w: int = 10, k: int = 15):
+        """
+        Initialize minimizer parameters
+        Args:
+            w: Window size
+            k: K-mer size
+        """
+        self.w = w
+        self.k = k
+
+    def compute(self, seq: str) -> List[Tuple[int, int]]:
+        """
+        Compute minimizers for a sequence
+        Args:
+            seq: Input sequence
+        Returns:
+            List of (position, hash) tuples
+        """
+        # TODO: Implement minimizer computation
+        pass

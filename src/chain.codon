@@ -1,0 +1,20 @@
+class Chain:
+    """
+    Class for chaining alignment anchors
+    """
+    def __init__(self):
+        """
+        Initialize chaining parameters
+        """
+        pass
+
+    def chain_anchors(self, anchors: List[Tuple[int, int, int]]) -> List[List[Tuple[int, int, int]]]:
+        """
+        Chain alignment anchors
+        Args:
+            anchors: List of (query_pos, ref_pos, length) anchors
+        Returns:
+            List of chains
+        """
+        # TODO: Implement chaining algorithm
+        pass
