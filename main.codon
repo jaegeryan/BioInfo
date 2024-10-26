@@ -6,11 +6,11 @@ from src.chain import Chain
 from src.align import Aligner  
 from src.utils import read_fasta, read_fastq  
 
-def main():  
-    """  
-    Main function for minimap2 implementation  
-    Usage: codon main.codon <ref.fa> <query.fq> > approx-mapping.paf  
-    """  
+"""
+Main function for minimap2 implementation
+Usage: codon main.codon <ref.fa> <query.fq> > approx-mapping.paf
+"""
+def main():
     if len(sys.argv) != 3:  
         print("Usage: codon main.codon <ref.fa> <query.fq> > approx-mapping.paf")  
         sys.exit(1)  
