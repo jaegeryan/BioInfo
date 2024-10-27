@@ -10,5 +10,4 @@ minimap2/
 │   ├── index.codon       # Index building and searching  
 │   ├── chain.codon       # Chaining algorithm  
 │   ├── align.codon       # Sequence alignment  
-│   └── utils.codon       # Utility functions  
 └── main.codon            # Main program entry  
