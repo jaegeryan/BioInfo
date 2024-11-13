@@ -1,3 +1,4 @@
+from typing import List, Tuple
 class Chain:
     """
     Class for chaining alignment anchors
@@ -17,4 +18,39 @@ class Chain:
             List of chains
         """
         # TODO: Implement chaining algorithm
-        pass
+        # TODO: Much simpler greedy chaining algorithm; possibly a placeholder for now. The one used in minimap2 was very hard to decipher...
+        # * I think the one in minimap2 is DP based, probably could change this later. 
+        anchors.sort(key=lambda x: x[0])
+
+        chains = []
+        cur_chain = []
+
+        for anchor in anchors:
+            if not cur_chain:
+                cur_chain.append(anchor)
+            else:
+                prev_anchor = cur_chain[-1]
+                if anchor[0] > prev_anchor[0] + prev_anchor[2]:
+                    cur_chain.append(anchor)
+                else:
+                    chains.append(cur_chain)
+                    cur_chain = [anchor]
+
+        if cur_chain:
+            chains.append(cur_chain)
+        
+        return chains
+    
+# Test anchors
+# anchors = [
+#     (0, 100, 50),  
+#     (60, 200, 50),
+#     (120, 300, 60),
+#     (180, 400, 70),
+#     (250, 500, 60),
+#     (330, 600, 50)
+# ]
+
+# chainer = Chain()
+# chains = chainer.chain_anchors(anchors)
+# print(chains)
