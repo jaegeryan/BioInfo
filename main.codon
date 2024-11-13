@@ -1,10 +1,10 @@
 from bio import *
 import sys
-from src.sketch import Minimizer
-from src.index import Index
-from src.chain import Chain
-from src.align import Aligner
-from src.utils import read_fasta, read_fastq
+from sketch import Minimizer
+from index import Index
+from chain import Chain
+from align import Aligner
+from utils import read_fasta, read_fastq
 
 """
 Main function for minimap2 implementation

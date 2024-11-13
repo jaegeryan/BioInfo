@@ -1,30 +1,102 @@
-from python import List, Tuple
 from bio import *
+from utils import revcomp
 
 class Minimizer:
     """
-    Class for computing minimizers from sequences
+    Minimizer implementation following minimap2's approach
     """
-    def __init__(self, w: int = 10, k: int = 15):
-        """
-        Initialize minimizer parameters
-        Args:
-            w: Window size
-            k: K-mer size
-        """
-        self.w = w
-        self.k = k
-
-    def compute(self, seq: str) -> List[Tuple[int, int]]:
-        """
-        Compute minimizers for a sequence
-        Args:
-            seq: Input sequence
-        Returns:
-            List of (position, hash) tuples
-        """
-        # TODO: Implement minimizer computation
-        pass
+    k: int
+    w: int
+    NT_TABLE: dict[str, int]
     
-a = 1 + 1
-print(a)
+    def __init__(self, k: int, w: int):
+        self.k = k
+        self.w = w
+        self.NT_TABLE = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4,
+                        'a': 0, 'c': 1, 'g': 2, 't': 3, 'n': 4}
+    
+    def _hash64(self, key: int, mask: int) -> int:
+        """Implements minimap2's hash function"""
+        key = (~key + (key << 21)) & mask
+        key = key ^ (key >> 24)
+        key = ((key + (key << 3)) + (key << 8)) & mask
+        key = key ^ (key >> 14)
+        key = ((key + (key << 2)) + (key << 4)) & mask
+        key = key ^ (key >> 28)
+        key = (key + (key << 31)) & mask
+        return key
+    
+    def _kmer_to_uint64(self, kmer: str) -> int:
+        """Convert k-mer to integer"""
+        val = 0
+        for c in kmer:
+            if c not in self.NT_TABLE or self.NT_TABLE[c] >= 4:
+                return -1  # Invalid k-mer
+            val = (val << 2) | self.NT_TABLE[c]
+        return val
+    
+    def get_minimizers(self, seq: str) -> list[tuple[int, int, str]]:
+        """
+        Get minimizers from sequence using minimap2's approach
+        Returns list of (position, strand, k-mer) tuples
+        """
+        if len(seq) < self.k:
+            return []
+            
+        mask = (1 << (2 * self.k)) - 1
+        minimizers = []
+        buf = []  # Store (hash, pos, strand, kmer)
+        
+        # Process sequence
+        l = 0  # number of valid bases
+        for i in range(len(seq) - self.k + 1):
+            kmer = seq[i:i+self.k]
+            kmer_val = self._kmer_to_uint64(kmer)
+            if kmer_val == -1:  # Invalid k-mer
+                l = 0
+                continue
+                
+            # Get forward and reverse hash
+            fwd_hash = self._hash64(kmer_val, mask)
+            rc_val = self._kmer_to_uint64(revcomp(kmer))
+            if rc_val == -1:
+                continue
+            rev_hash = self._hash64(rc_val, mask)
+            
+            # Skip symmetric k-mers
+            if fwd_hash == rev_hash:
+                continue
+                
+            # Get canonical form
+            if fwd_hash < rev_hash:
+                h, strand = fwd_hash, 1
+            else:
+                h, strand = rev_hash, -1
+                
+            # Add to buffer
+            buf.append((h, i, strand, kmer))
+            l += 1
+            
+            # Remove old entries
+            while buf and buf[0][1] <= i - self.w:
+                buf.pop(0)
+            
+            # Find minimum in current window
+            if l >= self.w:
+                min_idx = 0
+                for j in range(1, len(buf)):
+                    if buf[j][0] < buf[min_idx][0]:
+                        min_idx = j
+                min_h, min_pos, min_strand, min_kmer = buf[min_idx]
+                minimizers.append((min_pos, min_strand, min_kmer))
+        
+        return sorted(list(set(minimizers)), key=lambda x: x[0])
+        
+    def sketch(self, seq: str, mod: int = 0) -> list[tuple[int, int, str]]:
+        """
+        Compute minimizer sketch with modulo (for reduced memory)
+        """
+        minimizers = self.get_minimizers(seq)
+        if mod > 0:
+            minimizers = [m for m in minimizers if m[0] % mod == 0]
+        return minimizers
