@@ -24,6 +24,21 @@ def test_read_fasta():
     assert header2 == 'seq2', f"Expected header 'seq2', got {header2}"
     assert seq2 == 'GCTATTAA', f"Expected sequence 'GCTATTAA', got {seq2}"
     
+    # Empty file test
+    with open('empty.fa', 'w') as f:
+        pass
+    sequences = read_fasta('empty.fa')
+    assert len(sequences) == 0
+    
+    # Large file test
+    with open('large.fa', 'w') as f:
+        for i in range(1000):
+            f.write(f'>seq{i}\n')
+            f.write('A' * 1000 + '\n')
+    
+    sequences = read_fasta('large.fa')
+    assert len(sequences) == 1000
+    
     print("FASTA reading test passed!")
 
 def test_read_fastq():
