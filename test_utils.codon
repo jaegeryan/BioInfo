@@ -1,0 +1,104 @@
+from bio import *
+import sys
+from utils import read_fasta, read_fastq, revcomp
+
+def test_read_fasta():
+    """Test FASTA file reading"""
+    # Create a temporary FASTA file
+    with open('test.fa', 'w') as f:
+        f.write('>seq1\n')
+        f.write('ATCG\n')
+        f.write('>seq2\n')
+        f.write('GCTA\n')
+        f.write('TTAA\n')  # Multi-line sequence
+    
+    # Read and verify
+    sequences = read_fasta('test.fa')
+    assert len(sequences) == 2, f"Expected 2 sequences, got {len(sequences)}"
+    
+    header1, seq1 = sequences[0]
+    assert header1 == 'seq1', f"Expected header 'seq1', got {header1}"
+    assert seq1 == 'ATCG', f"Expected sequence 'ATCG', got {seq1}"
+    
+    header2, seq2 = sequences[1]
+    assert header2 == 'seq2', f"Expected header 'seq2', got {header2}"
+    assert seq2 == 'GCTATTAA', f"Expected sequence 'GCTATTAA', got {seq2}"
+    
+    print("FASTA reading test passed!")
+
+def test_read_fastq():
+    """Test FASTQ file reading"""
+    # Create a temporary FASTQ file
+    with open('test.fq', 'w') as f:
+        f.write('@seq1\n')
+        f.write('ATCG\n')
+        f.write('+\n')
+        f.write('IIII\n')
+        f.write('@seq2\n')
+        f.write('GCTA\n')
+        f.write('+\n')
+        f.write('HHII\n')
+    
+    # Read and verify
+    sequences = read_fastq('test.fq')
+    assert len(sequences) == 2, f"Expected 2 sequences, got {len(sequences)}"
+    
+    header1, seq1 = sequences[0]
+    assert header1 == 'seq1', f"Expected header 'seq1', got {header1}"
+    assert seq1 == 'ATCG', f"Expected sequence 'ATCG', got {seq1}"
+    
+    header2, seq2 = sequences[1]
+    assert header2 == 'seq2', f"Expected header 'seq2', got {header2}"
+    assert seq2 == 'GCTA', f"Expected sequence 'GCTA', got {seq2}"
+    
+    print("FASTQ reading test passed!")
+
+def test_revcomp():
+    """Test reverse complement function"""
+    # Test cases
+    test_cases = [
+        ('ATCG', 'CGAT'),
+        ('GCTA', 'TAGC'),
+        ('atcg', 'cgat'),
+        ('NNAT', 'ATNN'),
+        ('', ''),
+        ('ATCGatcg', 'cgatCGAT')
+    ]
+    
+    for input_seq, expected in test_cases:
+        result = revcomp(input_seq)
+        assert result == expected, f"For input '{input_seq}', expected '{expected}', got '{result}'"
+    
+    print("Reverse complement test passed!")
+
+def test_error_handling():
+    """Test error handling"""
+    # Test invalid FASTQ format
+    with open('invalid.fq', 'w') as f:
+        f.write('invalid format\n')  # Missing @ in header
+        f.write('ATCG\n')
+        f.write('+\n')
+        f.write('IIII\n')
+    
+    error_caught = False
+    try:
+        read_fastq('invalid.fq')
+    except SystemExit:
+        error_caught = True
+    
+    assert error_caught, "Expected error for invalid FASTQ format"
+    print("Error handling test passed!")
+
+def main():
+    """Run all tests"""
+    print("Starting utils tests...")
+    
+    test_read_fasta()
+    test_read_fastq()
+    test_revcomp()
+    test_error_handling()
+    
+    print("All utils tests passed!")
+
+if __name__ == "__main__":
+    main() 
