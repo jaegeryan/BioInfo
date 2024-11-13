@@ -1,33 +1,76 @@
 from bio import *
-from .sketch import Minimizer
+from sketch import Minimizer
+from utils import revcomp
 
 class Index:
     """
     Class for building and querying minimizer index
+    Based on minimap2's implementation
     """
-    def __init__(self):
-        """
-        Initialize index structure
-        """
-        self.minimizer = Minimizer()
+    k: int  
+    w: int  
+    minimizer: Minimizer
+    index: dict[int, list[tuple[int, int]]]  # minimizer hash -> [(pos, strand)]
+    min_cnt: Optional[int]
+    
+    def __init__(self, k: int, w: int, min_cnt: Optional[int] = None):
+        self.k = k
+        self.w = w
+        self.min_cnt = min_cnt
+        self.minimizer = Minimizer(k, w)
         self.index = {}
-
-    def build(self, reference: str):
-        """
-        Build index from reference sequence
-        Args:
-            reference: Reference sequence
-        """
-        # TODO: Implement index building
-        pass
-
-    def query(self, query: str) -> List[Tuple[int, int]]:
-        """
-        Query the index
-        Args:
-            query: Query sequence
-        Returns:
-            List of matching positions
-        """
-        # TODO: Implement query
-        pass
+    
+    def build(self, seq: str):
+        """Build index from reference sequence"""
+        # Get minimizers from sequence
+        minimizers = self.minimizer.get_minimizers(seq)
+        
+        # Add to index
+        for pos, strand, kmer in minimizers:
+            # Convert k-mer to hash value
+            kmer_val = self.minimizer._kmer_to_uint64(kmer)
+            if kmer_val == -1:
+                continue
+                
+            # Add to index
+            if kmer_val not in self.index:
+                self.index[kmer_val] = []
+            self.index[kmer_val].append((pos, strand))
+        
+        # Filter by min_cnt if specified
+        if self.min_cnt:
+            filtered_index = {}
+            for kmer_val, positions in self.index.items():
+                if len(positions) >= self.min_cnt:
+                    filtered_index[kmer_val] = positions
+            self.index = filtered_index
+    
+    def query(self, seq: str) -> list[tuple[int, int, int]]:
+        """Query the index"""
+        matches = []
+        
+        # Get minimizers from both original and reverse complement sequence
+        query_minimizers = self.minimizer.get_minimizers(seq)
+        rc_minimizers = self.minimizer.get_minimizers(revcomp(seq))
+        
+        # Process forward minimizers
+        for q_pos, q_strand, kmer in query_minimizers:
+            kmer_val = self.minimizer._kmer_to_uint64(kmer)
+            if kmer_val == -1:
+                continue
+                
+            if kmer_val in self.index:
+                for ref_pos, ref_strand in self.index[kmer_val]:
+                    matches.append((q_pos, ref_pos, 1))  # Forward strand
+        
+        # Process reverse complement minimizers
+        for q_pos, q_strand, kmer in rc_minimizers:
+            kmer_val = self.minimizer._kmer_to_uint64(kmer)
+            if kmer_val == -1:
+                continue
+                
+            if kmer_val in self.index:
+                for ref_pos, ref_strand in self.index[kmer_val]:
+                    matches.append((len(seq) - q_pos - self.k, ref_pos, -1))  # Reverse strand
+        
+        return sorted(matches)
