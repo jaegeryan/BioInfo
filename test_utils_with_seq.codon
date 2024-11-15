@@ -1,0 +1,139 @@
+from bio import *
+import sys
+from utils import read_fasta, read_fastq, get_kmers
+
+def test_read_fasta():
+    """Test FASTA file reading"""
+    # Test normal FASTA file
+    sequences = read_fasta("sacCer3.fa")
+    
+    # Print actual content to understand file structure
+    print(f"Found {len(sequences)} sequences:")
+    for i, (header, s) in enumerate(sequences):
+        print(f"Sequence {i+1}:")
+        print(f"Header: {header}")
+        print(f"Sequence length: {len(s)}")
+        print(f"First 50 bases: {s[:50]}")
+        print("---")
+    
+    # Basic validation
+    assert len(sequences) > 0, "No sequences found"
+    for header, s in sequences:
+        assert isinstance(header, str), "Header should be string"
+        assert isinstance(s, seq), "Sequence should be seq type"
+        assert len(s) > 0, "Sequence should not be empty"
+    
+    print("FASTA reading test passed!")
+
+def test_read_fastq():
+    """Test FASTQ file reading"""
+    print("\nTesting FASTQ reading...")
+    
+    sequences = read_fastq("ENCSR000COQ1_1.fastq")
+    
+    # iterate FASTQ file
+    count = 0
+    for name, read, qual, sequence in sequences:
+        if count < 5:
+            print(f"\nSequence {count + 1}:")
+            print(f"Name: {name}")
+            print(f"Read: {read[:50]}...")
+            print(f"Quality: {qual[:50]}...")
+            print(f"Sequence: {sequence[:50]}...")
+        count += 1
+    
+    print(f"\nTotal sequences found: {count}")
+    
+    # basic validation
+    assert count > 0, "No sequences found in FASTQ file"
+    
+    for name, read, qual, sequence in sequences:
+        # validate name format
+        assert isinstance(name, str), "Name should be string"
+        assert len(name) > 0, "Name should not be empty"
+        
+        # validate read and sequence format
+        assert isinstance(read, seq), "Read should be seq type"
+        assert isinstance(sequence, seq), "Sequence should be seq type"
+        
+        # validate quality format
+        assert isinstance(qual, str), "Quality should be string type"
+        
+        # validate length match
+        assert len(read) > 0, "Read should not be empty"
+        assert len(read) == len(qual), "Quality length should match read length"
+        assert len(read) == len(sequence), "Sequence length should match read length"
+    
+    print("\nFASTQ reading test passed!")
+
+def test_revcomp():
+    """Test reverse complement"""
+    print("\nTesting reverse complement...")
+    
+    # get sequences from FASTA file
+    sequences = read_fasta("sacCer3.fa")
+    
+    # test only the first 5 sequences
+    for i, (header, sequence) in enumerate(sequences):
+        if i >= 5:  # only show the first 5
+            break
+            
+        # reverse complement using seq type
+        rc = revcomp(sequence)
+        
+        print(f"\nSequence {i + 1}: {header}")
+        print(f"Original first 50bp: {sequence[:50]}")
+        print(f"Revcomp first 50bp: {rc[:50]}")
+        
+        # validate reverse complement properties
+        # 1. length should be the same
+        assert len(rc) == len(sequence), "Length should be preserved"
+        
+        # 2. double reverse complement should return the original sequence
+        double_rc = revcomp(rc)
+        assert double_rc == sequence, "Double reverse complement should return original sequence"
+        
+    print("\nReverse complement test passed!")
+
+def test_get_kmers():
+    """Test minimizer extraction"""
+    print("\nTesting minimizer extraction...")
+    
+    # Test case 1: basic minimizer extraction
+    test_seq = s'ACGTACGTACGT'
+    
+    # use default parameters
+    kmers = get_kmers(test_seq)
+    print(f"\nTest sequence: {test_seq}")
+    print(f"k=15, w=10")
+    print("Minimizers:")
+    for kmer in kmers:
+        print(f"  {kmer}")
+    
+    # use smaller k and w for testing
+    kmers = get_kmers(test_seq, k=4, w=4)
+    print(f"\nTest with k=4, w=4:")
+    for kmer in kmers:
+        print(f"  {kmer}")
+    
+    # Test case 2: using actual sequences
+    sequences = read_fasta("sacCer3.fa")
+    header, seq = sequences[0]
+    
+    # use default parameters
+    kmers = get_kmers(seq[:100])  # only test the first 100bp
+    
+    print(f"\nSequence: {header}")
+    print("First 5 minimizers:")
+    for i, kmer in enumerate(kmers):
+        if i >= 5:
+            break
+        print(f"  {kmer}")
+    
+    print("\nMinimizer extraction test passed!")
+
+if __name__ == "__main__":
+    # test_read_fasta()
+    # test_read_fastq()
+    # test_revcomp()
+    test_get_kmers()
