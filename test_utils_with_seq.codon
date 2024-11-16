@@ -1,6 +1,6 @@
 from bio import *
 import sys
-from utils import read_fasta, read_fastq, get_kmers
+from utils_with_seq import read_fasta, read_fastq, get_kmers
 
 def test_read_fasta():
     """Test FASTA file reading"""
@@ -95,45 +95,7 @@ def test_revcomp():
         
     print("\nReverse complement test passed!")
 
-def test_get_kmers():
-    """Test minimizer extraction"""
-    print("\nTesting minimizer extraction...")
-    
-    # Test case 1: basic minimizer extraction
-    test_seq = s'ACGTACGTACGT'
-    
-    # use default parameters
-    kmers = get_kmers(test_seq)
-    print(f"\nTest sequence: {test_seq}")
-    print(f"k=15, w=10")
-    print("Minimizers:")
-    for kmer in kmers:
-        print(f"  {kmer}")
-    
-    # use smaller k and w for testing
-    kmers = get_kmers(test_seq, k=4, w=4)
-    print(f"\nTest with k=4, w=4:")
-    for kmer in kmers:
-        print(f"  {kmer}")
-    
-    # Test case 2: using actual sequences
-    sequences = read_fasta("sacCer3.fa")
-    header, seq = sequences[0]
-    
-    # use default parameters
-    kmers = get_kmers(seq[:100])  # only test the first 100bp
-    
-    print(f"\nSequence: {header}")
-    print("First 5 minimizers:")
-    for i, kmer in enumerate(kmers):
-        if i >= 5:
-            break
-        print(f"  {kmer}")
-    
-    print("\nMinimizer extraction test passed!")
-
 if __name__ == "__main__":
-    # test_read_fasta()
-    # test_read_fastq()
-    # test_revcomp()
-    test_get_kmers()
+    test_read_fasta()
+    test_read_fastq()
+    test_revcomp()

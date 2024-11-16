@@ -1,0 +1,229 @@
+import sys
+from bio import *
+from utils_with_seq import read_fasta
+from sketch_with_seq import extract_minimizers
+from typing import List, Dict, Tuple
+
+
+class Index:
+    sequences = List[seq]()
+    seq_names = List[str]()
+    seq_lens = List[int]()
+    minimizer_index = Dict[Kmer[3], List[Tuple[int, int]]]()
+
+    def __init__(self):
+        self.sequences = []            # List[seq]
+        self.seq_names = []            # List[str]
+        self.seq_lens = []             # List[int]
+        self.minimizer_index = {}      # Dict[Kmer[3], List[Tuple[int, int]]]
+        
+    def index_names(self) -> Dict[str, int]:
+        """
+        create a mapping from sequence names to sequence IDs
+
+        Returns:
+            Dict[str, int]: a mapping from sequence names to sequence IDs
+        """
+        name_to_id: Dict[str, int] = {}
+        has_dup: bool = False
+        for i, name in enumerate(self.seq_names):
+            if name in name_to_id:
+                has_dup = True
+            else:
+                name_to_id[name] = i
+        if has_dup:
+            print("[WARNING] some database sequences have the same name")
+        return name_to_id
+    
+    def save_index(self, filepath: str, k: int, w: int):
+        """
+        save the index to a file
+
+        Args:
+            filepath (str): the path to save the file
+            k (int): the length of k-mer
+            w (int): the window size
+        """
+        try:
+            with open(filepath, 'w') as f:
+                # write the index metadata
+                f.write(f"k={k}\n")
+                f.write(f"w={w}\n")
+                f.write(f"num_seqs={len(self.seq_lens)}\n")
+                
+                # write the sequence information
+                for name, length, sequence in zip(self.seq_names, self.seq_lens, self.sequences):
+                    f.write(f"{name}\t{length}\t{sequence}\n")
+                
+                # write the minimizer index
+                for min_kmer, positions in self.minimizer_index.items():
+                    pos_str = ",".join([f"{seq_id}:{pos}" for seq_id, pos in positions])
+                    f.write(f"k'{min_kmer}'\t{pos_str}\n")
+            print(f"the index has been saved to {filepath}")
+        except IOError as e:
+            print(f"Error writing file {filepath}: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def load_index(self, index_filepath: str):
+       """
+       load the index from a file, including the sequences and the minimizer index
+
+       Args:
+           index_filepath (str): the path to load the index file
+       """
+       try:
+           with open(index_filepath, 'r') as f:
+               # read the whole file content and split it by lines
+               content = f.read()
+               lines = content.split('\n')
+               
+               if len(lines) < 3:
+                   print("the index file format error: missing metadata lines", file=sys.stderr)
+                   sys.exit(1)
+               
+               k_line = lines[0].strip()
+               w_line = lines[1].strip()
+               num_seqs_line = lines[2].strip()
+               try:
+                   k = int(k_line.split('=')[1])
+                   w = int(w_line.split('=')[1])
+                   num_seqs = int(num_seqs_line.split('=')[1])
+               except IndexError:
+                   print("the index file format error: missing metadata lines", file=sys.stderr)
+                   sys.exit(1)
+               except ValueError:
+                   print("the index file format error: cannot convert to integer", file=sys.stderr)
+                   sys.exit(1)
+               
+               # read the sequence information
+               current_line = 3
+               for _ in range(num_seqs):
+                   if current_line >= len(lines):
+                       break
+                   line = lines[current_line].strip()
+                   current_line += 1
+                   if not line:
+                       continue
+                   parts = line.split('\t')
+                   if len(parts) != 3:
+                       print(f"the sequence information format error: {line}", file=sys.stderr)
+                       continue
+                   name, length_str, sequence = parts
+                   try:
+                       length = int(length_str)
+                   except ValueError:
+                       print(f"the sequence length format error: {length_str}", file=sys.stderr)
+                       continue
+                   self.seq_names.append(name)
+                   self.seq_lens.append(length)
+                   self.sequences.append(seq(sequence))
+               
+               # read the minimizer index
+               for line in lines[current_line:]:
+                   line = line.strip()
+                   if not line:
+                       continue
+                   parts = line.split('\t')
+                   if len(parts) != 2:
+                       print(f"the minimizer index line format error: {line}", file=sys.stderr)
+                       continue
+                   min_kmer_str, pos_str = parts
+                   
+                   # parse the k-mer, remove the prefix k' and the suffix '
+                   if min_kmer_str.startswith("k'") and min_kmer_str.endswith("'"):
+                       min_kmer = Kmer[3](min_kmer_str[2:-1])
+                   else:
+                       min_kmer = Kmer[3](min_kmer_str)
+                   
+                   positions = []
+                   pos_pairs = pos_str.split(',')
+                   for pos_pair in pos_pairs:
+                       if ':' in pos_pair:
+                           parts = pos_pair.split(':')
+                           if len(parts) != 2:
+                               continue
+                           try:
+                               seq_id = int(parts[0])
+                               pos = int(parts[1])
+                               positions.append((seq_id, pos))
+                           except ValueError:
+                               print(f"Invalid position pair: {pos_pair}", file=sys.stderr)
+                               continue
+                   self.minimizer_index[min_kmer] = positions
+           print(f"the index has been loaded from {index_filepath}")
+       except IOError as e:
+           print(f"Error reading file {index_filepath}: {e}", file=sys.stderr)
+           sys.exit(1)
+       except Exception as e:
+           print(f"Error processing file {index_filepath}: {e}", file=sys.stderr)
+           sys.exit(1)
+    
+
+def init_index() -> Index:
+    """
+    initialize the index data structure
+
+    Returns:
+        Index: an index object containing sequences, seq_names, seq_lens, and minimizer_index
+    """
+    return Index()
+
+# test the whole process
+if __name__ == "__main__":
+    k = 3
+    w = 5
+    
+    index = init_index()
+    print("the initialized index structure:")
+    print(f"Sequences: {index.sequences}")
+    print(f"Sequence Names: {index.seq_names}")
+    print(f"Sequence Lengths: {index.seq_lens}")
+    print(f"Minimizer Index: {index.minimizer_index}")
+
+    # simulate adding sequences
+    index.sequences.append(seq("AGCATACATAGCATAAAAAA"))
+    index.seq_names.append("ref1")
+    index.seq_lens.append(len(index.sequences[-1]))
+
+    index.sequences.append(seq("CGTACGTAGCATGCTAGCTA"))
+    index.seq_names.append("ref2")
+    index.seq_lens.append(len(index.sequences[-1]))
+
+    # create a mapping from sequence names to sequence IDs
+    name_to_id = index.index_names()
+    print("the mapping from sequence names to sequence IDs:", name_to_id)
+
+    # extract and add minimizers to the index
+    for seq_id, seq_obj in enumerate(index.sequences):
+        mins = extract_minimizers(seq_obj, 3, 5)
+        for pos, min_kmer in mins:
+            if min_kmer not in index.minimizer_index:
+                index.minimizer_index[min_kmer] = []
+            index.minimizer_index[min_kmer].append((seq_id, pos))
+
+    # print the updated index structure
+    print("the updated index structure:")
+    print(f"Sequences: {index.sequences}")
+    print(f"Sequence Names: {index.seq_names}")
+    print(f"Sequence Lengths: {index.seq_lens}")
+    print(f"Minimizer Index: {index.minimizer_index}")
+
+    # save the sequences to a fasta file
+    with open("sequences.fasta", 'w') as fasta_file:
+        for name, sequence in zip(index.seq_names, index.sequences):
+            fasta_file.write(f">{name}\n")
+            fasta_file.write(f"{sequence}\n")
+
+    # save the index to a file
+    index.save_index("minimap2_index.txt", k, w)
+
+    # load the index from a file
+    loaded_index = init_index()
+    loaded_index.load_index("minimap2_index.txt")
+
+    # print the loaded index structure
+    print("the loaded index structure:")
+    print(f"Sequences: {loaded_index.sequences}")
+    print(f"Sequence Names: {loaded_index.seq_names}")
+    print(f"Sequence Lengths: {loaded_index.seq_lens}")
+    print(f"Minimizer Index: {loaded_index.minimizer_index}")
