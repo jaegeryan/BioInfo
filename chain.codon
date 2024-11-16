@@ -1,56 +1,98 @@
-from typing import List, Tuple
+from typing import List
+
+# Define Anchor and Chain classes
+class Anchor:
+    query_pos: int
+    target_pos: int
+    score: int
+    def __init__(self, query_pos: int = 0, target_pos: int = 0, score: int = 0):
+        self.query_pos = query_pos
+        self.target_pos = target_pos
+        self.score = score
+
 class Chain:
-    """
-    Class for chaining alignment anchors
-    """
+    anchors: list[Anchor]
+    score: int
+
     def __init__(self):
-        """
-        Initialize chaining parameters
-        """
-        pass
+        self.anchors = []
+        self.score = 0
 
-    def chain_anchors(self, anchors: List[Tuple[int, int, int]]) -> List[List[Tuple[int, int, int]]]:
-        """
-        Chain alignment anchors
-        Args:
-            anchors: List of (query_pos, ref_pos, length) anchors
-        Returns:
-            List of chains
-        """
-        # TODO: Implement chaining algorithm
-        # TODO: Much simpler greedy chaining algorithm; possibly a placeholder for now. The one used in minimap2 was very hard to decipher...
-        # * I think the one in minimap2 is DP based, probably could change this later. 
-        anchors.sort(key=lambda x: x[0])
-
-        chains = []
-        cur_chain = []
-
-        for anchor in anchors:
-            if not cur_chain:
-                cur_chain.append(anchor)
-            else:
-                prev_anchor = cur_chain[-1]
-                if anchor[0] > prev_anchor[0] + prev_anchor[2]:
-                    cur_chain.append(anchor)
-                else:
-                    chains.append(cur_chain)
-                    cur_chain = [anchor]
-
-        if cur_chain:
-            chains.append(cur_chain)
-        
-        return chains
+#Compute the score for a pair of anchors
+def compute_sc(anchor_i: Anchor, anchor_j: Anchor, max_dist_x: int, max_dist_y: int, bw: int) -> int:
+    """
+    Compute the chaining score between two anchors.
     
-# Test anchors
-# anchors = [
-#     (0, 100, 50),  
-#     (60, 200, 50),
-#     (120, 300, 60),
-#     (180, 400, 70),
-#     (250, 500, 60),
-#     (330, 600, 50)
-# ]
+    Args:
+        anchor_i (Anchor): The earlier anchor in the chain.
+        anchor_j (Anchor): The candidate anchor to extend the chain.
+        max_dist_x (int): Maximum allowed distance in the query sequence.
+        max_dist_y (int): Maximum allowed distance in the target sequence.
+        bw (int): Bandwidth limit for diagonal deviation.
+    
+    Returns:
+        int: A positive score if chaining is valid, otherwise a penalty or 0.
+    """
+    dx = anchor_j.query_pos - anchor_i.query_pos  # Query distance
+    dy = anchor_j.target_pos - anchor_i.target_pos  # Target distance
 
-# chainer = Chain()
-# chains = chainer.chain_anchors(anchors)
-# print(chains)
+    # Distance checks
+    if dx <= 0 or dy <= 0:  # Must move forward in both sequences
+        return 0
+    if dx > max_dist_x or dy > max_dist_y:  # Exceed maximum allowed distance
+        return 0
+
+    # Bandwidth constraint (diagonal distance)
+    if abs(dx - dy) > bw:
+        return 0
+
+    # Scoring rule: Example heuristic
+    # Reward alignment proximity; penalize gaps
+    gap_penalty = abs(dx - dy)  # Penalize diagonal deviation
+    score = min(dx, dy) - gap_penalty  # Reward smaller distances, penalize gaps
+
+    return max(score, 0)  # Ensure non-negative score
+
+
+# Main DP chaining function
+def mg_chain_dp(anchors: List[Anchor], max_dist_x: int, max_dist_y: int, bw: int) -> List[Chain]:
+    anchors.sort(key=lambda x: (x.query_pos, x.target_pos))
+    n = len(anchors)
+    f = [0] * n  # Max score up to each anchor
+    p = [-1] * n  # Backtracking array
+
+    for i in range(n):
+        f[i] = anchors[i].score  # Initialize with the anchor's intrinsic score
+        for j in range(i):
+            score = compute_sc(anchors[j], anchors[i], max_dist_x, max_dist_y, bw)
+            if score > 0 and f[j] + score > f[i]:
+                f[i] = f[j] + score
+                p[i] = j
+
+    # Reconstruct chains
+    chains = []
+    visited = set()
+    for i in range(n):
+        if i in visited:
+            continue
+        chain = Chain()
+        chain.score = f[i]
+        j = i
+        while j != -1 and j not in visited:
+            chain.anchors.append(anchors[j])
+            visited.add(j)
+            j = p[j]
+        chain.anchors.reverse()  # Backtracking yields anchors in reverse order
+        chain.score = sum(anchor.score for anchor in chain.anchors)
+        chains.append(chain)
+
+    return chains
+
+
+anchors = [Anchor(1, 10, 10), Anchor(5, 15, 15), Anchor(10, 20, 20)]
+chains = mg_chain_dp(anchors, max_dist_x=10, max_dist_y=10, bw=5)
+
+for chain in chains:
+    print(f"Chain with {len(chain.anchors)} anchors, score: {chain.score}")
+    for anchor in chain.anchors:
+        print(f"  Anchor(query_pos={anchor.query_pos}, target_pos={anchor.target_pos}, score={anchor.score})")
