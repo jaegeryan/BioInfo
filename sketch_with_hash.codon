@@ -1,0 +1,86 @@
+from bio import *
+
+UINT64_MAX = (1 << 64) - 1
+
+def custom_hash(kmer: Kmer[k], k: Static[int]) -> int:
+    """
+    design a simple hash function for k-mer
+    """
+    BASE = 233
+    MOD = (1 << 61) - 1
+    
+    hash_val = 0
+    kmer_str = str(kmer)
+    
+    for c in kmer_str:
+        val = 0
+        if c == 'A': val = 1
+        elif c == 'C': val = 2
+        elif c == 'G': val = 3
+        elif c == 'T': val = 4
+        
+        hash_val = (hash_val * BASE + val) % MOD
+    
+    return hash_val
+
+def extract_minimizers(s, k: Static[int], w: Static[int]):
+    minimizers = []
+    seen_kmers = Dict[Kmer[k], int]()
+    
+    # print("\nwindow processing:")
+    
+    # process each window
+    for i in range(len(s)-w+1):
+        # print(f"\nwindow {i} [{i}:{i+w}]:")
+        
+        # initialize the hash value of the first k-mer
+        first_kmer = Kmer[k](s[i:i+k])
+        first_rev = ~first_kmer
+        first_canonical = first_rev if first_rev < first_kmer else first_kmer
+        window_min_hash = custom_hash(first_canonical, k)
+        window_min_pos = i
+        window_min_kmer = first_canonical
+        
+        # process each k-mer in the window
+        for j in range(w-k+1):
+            pos = i + j
+            kmer = Kmer[k](s[pos:pos+k])
+            rev_kmer = ~kmer
+            canonical = rev_kmer if rev_kmer < kmer else kmer
+            hash_val = custom_hash(canonical, k)
+            
+            # print(f"  position {pos}: {kmer}->{'reverse' if rev_kmer < kmer else 'forward'} {canonical} (hash: {hash_val})")
+            
+            if hash_val < window_min_hash:
+                window_min_hash = hash_val
+                window_min_pos = pos
+                window_min_kmer = canonical
+        
+        # print(f"  window minimizer: pos={window_min_pos}, kmer={window_min_kmer}, hash={window_min_hash}")
+        
+        # only add the k-mer if it's new or far enough from the last occurrence
+        if window_min_kmer not in seen_kmers or window_min_pos - seen_kmers[window_min_kmer] >= w:
+            minimizers.append((window_min_pos, window_min_kmer))
+            seen_kmers[window_min_kmer] = window_min_pos
+            # print(f"  add minimizer: pos={window_min_pos}, kmer={window_min_kmer}")
+    
+    return minimizers
+
+
+# def test():
+    # s = 'AAAATACATAGCATAAAAAA'
+    # s = 'AGCATACATAGCATAAAAAA'
+    # print(f"sequence length: {len(s)}")
+    
+    # print("\nall 3-mers and their hash values:")
+    # for i in range(len(s)-2):
+    #     kmer = Kmer[3](s[i:i+3])
+    #     canonical = min(kmer, ~kmer)
+    #     hash_val = custom_hash(canonical, 3)
+    #     # print(f"position {i}: {kmer} (hash: {hash_val})")
+    
+    # print("\nextract minimizers:")
+    result = extract_minimizers(s, k=3, w=5)
+    print(f"Minimizers: {result}")
+
+# test()
