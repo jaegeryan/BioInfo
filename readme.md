@@ -11,10 +11,4 @@ bioinformatics/
 ├── index.codon           # Index building and searching  
 ├── chain.codon           # Chaining algorithm  
 ├── utils.codon           # Utility functions (FASTA/FASTQ readers)  
-├── test.codon            # Test module
-├── test_sketch.codon     # Sketch module tests
-├── test_utils.codon      # Utils module tests
-├── test.fa               # Test FASTA file
-├── test.fq               # Test FASTQ file
-├── invalid.fq            # Invalid FASTQ test file
 └── readme.md             # Project documentation
