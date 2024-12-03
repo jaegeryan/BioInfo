@@ -2,6 +2,8 @@ from bio import *
 
 UINT64_MAX = (1 << 64) - 1
 
+# Custom hash function for k-mer
+# use kmer value to calculate hash
 def custom_hash(kmer: Kmer[k], k: Static[int]) -> int:
     """
     design a simple hash function for k-mer
@@ -23,6 +25,7 @@ def custom_hash(kmer: Kmer[k], k: Static[int]) -> int:
     
     return hash_val
 
+# extract minimizers from a sequence in a sliding window
 def extract_minimizers(s, k: Static[int], w: Static[int]):
     minimizers = []
     seen_kmers = Dict[Kmer[k], int]()
@@ -69,7 +72,7 @@ def extract_minimizers(s, k: Static[int], w: Static[int]):
 
 # def test():
     # s = 'AAAATACATAGCATAAAAAA'
-    # s = 'AGCATACATAGCATAAAAAA'
+    # # s = 'AGCATACATAGCATAAAAAA'
     # print(f"sequence length: {len(s)}")
     
     # print("\nall 3-mers and their hash values:")
@@ -80,7 +83,7 @@ def extract_minimizers(s, k: Static[int], w: Static[int]):
     #     # print(f"position {i}: {kmer} (hash: {hash_val})")
     
     # print("\nextract minimizers:")
-    result = extract_minimizers(s, k=3, w=5)
-    print(f"Minimizers: {result}")
+    # result = extract_minimizers(s, k=3, w=5)
+    # print(f"Minimizers: {result}")
 
 # test()
