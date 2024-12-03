@@ -49,27 +49,82 @@ class Chain:
         return optimal_chain, max_score
 
 
-
 def test_chaining():
-    # Create sample matches: (start, end, score)
+    # Test 1: Basic chaining with overlapping matches
     matches = [
-        (100, 150, 30),  # match 1
-        (200, 250, 35),  # match 2
-        (120, 170, 40),  # match 3 (overlaps with match 1)
-        (500, 550, 50),  # match 4 (distant)
-        (450, 500, 45),  # match 5 (near match 4)
-        (10, 50, 25)     # match 6 (low score, should not chain)
+        (100, 150, 30),
+        (120, 170, 40),
+        (200, 250, 35),
+        (500, 550, 50),
+        (450, 500, 45),
+        (10, 50, 25)
     ]
-
-    # Initialize the chaining algorithm with a minimum score of 30
     chain = Chain(min_score=30, max_distance=50)
-
-    # Perform chaining
     optimal_chain, max_score = chain.chain_anchors(matches)
-
-    # Print the result
+    print("Basic chaining with overlapping matches")
     print(f"Optimal Chain: {optimal_chain}")
-    print(f"Maximum Score: {max_score}")
+    print(f"Maximum Score: {max_score}\n")
+
+    # Test 2: Matches that are too distant
+    matches = [
+        (100, 150, 30),
+        (500, 550, 40)
+    ]
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Chaining with matches that're too distant")
+    print(f"Optimal Chain (distant matches): {optimal_chain}")
+    print(f"Maximum Score: {max_score}\n")
+
+    # Test 3: Matches with exactly max_distance gap
+    matches = [
+        (100, 150, 30),
+        (200, 250, 40)
+    ]
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Chaining with max distnance")
+    print(f"Optimal Chain (max_distance): {optimal_chain}")
+    print(f"Maximum Score: {max_score}\n")
+
+    # Test 4: Matches below min_score threshold
+    matches = [
+        (100, 150, 30),
+        (200, 250, 25)
+    ]
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Chaining below min score")
+    print(f"Optimal Chain (below min_score): {optimal_chain}")
+    print(f"Maximum Score: {max_score}\n")
 
 
+    # Test 5: Multiple chains
+    matches = [
+        (100, 150, 40),
+        (120, 170, 45),
+        (200, 250, 30),
+        (500, 550, 35),
+        (450, 500, 40)
+    ]
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Multiple chain test")
+    print(f"Optimal Chain (multiple chains): {optimal_chain}")
+    print(f"Maximum Score: {max_score}\n")
+
+
+
+    # Test 6: Various matches
+    matches = [ 
+        (100, 150, 30),
+        (200, 250, 35),
+        (120,170, 40), 
+        (500, 550, 50),
+        (450, 500, 45),
+        (10, 50, 25)
+    ]
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Various matches")
+    print(f"Optimal chain (various chains): {optimal_chain}")
+    print(f"Maximum score: {max_score}\n")
 test_chaining()
+
+
+
