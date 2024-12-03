@@ -1,98 +1,75 @@
-from typing import List
-
-# Define Anchor and Chain classes
-class Anchor:
-    query_pos: int
-    target_pos: int
-    score: int
-    def __init__(self, query_pos: int = 0, target_pos: int = 0, score: int = 0):
-        self.query_pos = query_pos
-        self.target_pos = target_pos
-        self.score = score
-
 class Chain:
-    anchors: list[Anchor]
-    score: int
+    min_score:int
+    max_distance:int
+    def __init__(self, min_score, max_distance):
+        self.min_score = min_score
+        self.max_distance = max_distance
 
-    def __init__(self):
-        self.anchors = []
-        self.score = 0
+    def chain_anchors(self, matches):
+        # Filter and sort matches
+        matches = [match for match in matches if match[2] >= self.min_score]
+        matches.sort(key=lambda x: x[0])
 
-#Compute the score for a pair of anchors
-def compute_sc(anchor_i: Anchor, anchor_j: Anchor, max_dist_x: int, max_dist_y: int, bw: int) -> int:
-    """
-    Compute the chaining score between two anchors.
-    
-    Args:
-        anchor_i (Anchor): The earlier anchor in the chain.
-        anchor_j (Anchor): The candidate anchor to extend the chain.
-        max_dist_x (int): Maximum allowed distance in the query sequence.
-        max_dist_y (int): Maximum allowed distance in the target sequence.
-        bw (int): Bandwidth limit for diagonal deviation.
-    
-    Returns:
-        int: A positive score if chaining is valid, otherwise a penalty or 0.
-    """
-    dx = anchor_j.query_pos - anchor_i.query_pos  # Query distance
-    dy = anchor_j.target_pos - anchor_i.target_pos  # Target distance
+        n = len(matches)
+        dp = [0] * n  # dp[i] stores the best score ending at matches[i]
+        backtrack = [-1] * n  # backtrack[i] stores the previous match in the optimal chain
 
-    # Distance checks
-    if dx <= 0 or dy <= 0:  # Must move forward in both sequences
-        return 0
-    if dx > max_dist_x or dy > max_dist_y:  # Exceed maximum allowed distance
-        return 0
+        # Initialize DP with individual match scores
+        for i in range(n):
+            dp[i] = matches[i][2]  # Starting score is the match score
 
-    # Bandwidth constraint (diagonal distance)
-    if abs(dx - dy) > bw:
-        return 0
+        # Fill DP table
+        for i in range(1, n):
+            for j in range(i):
+                start_i, end_i, score_i = matches[i]
+                start_j, end_j, score_j = matches[j]
+                
+                gap = start_i - end_j
+                if gap <= self.max_distance:
+                    penalty = max(0, gap - self.max_distance)
+                    potential_score = dp[j] + score_i - penalty
+                    
+                    if potential_score > dp[i]:
+                        dp[i] = potential_score
+                        backtrack[i] = j
 
-    # Scoring rule: Example heuristic
-    # Reward alignment proximity; penalize gaps
-    gap_penalty = abs(dx - dy)  # Penalize diagonal deviation
-    score = min(dx, dy) - gap_penalty  # Reward smaller distances, penalize gaps
+        # Find the best overall score and reconstruct the optimal chain
+        max_index = max(range(n), key=lambda i: dp[i])
+        max_score = dp[max_index]
 
-    return max(score, 0)  # Ensure non-negative score
+        # Reconstruct the optimal chain
+        optimal_chain = []
+        current = max_index
+        while current != -1:
+            optimal_chain.append(matches[current])
+            current = backtrack[current]
 
+        optimal_chain.reverse()
 
-# Main DP chaining function
-def mg_chain_dp(anchors: List[Anchor], max_dist_x: int, max_dist_y: int, bw: int) -> List[Chain]:
-    anchors.sort(key=lambda x: (x.query_pos, x.target_pos))
-    n = len(anchors)
-    f = [0] * n  # Max score up to each anchor
-    p = [-1] * n  # Backtracking array
-
-    for i in range(n):
-        f[i] = anchors[i].score  # Initialize with the anchor's intrinsic score
-        for j in range(i):
-            score = compute_sc(anchors[j], anchors[i], max_dist_x, max_dist_y, bw)
-            if score > 0 and f[j] + score > f[i]:
-                f[i] = f[j] + score
-                p[i] = j
-
-    # Reconstruct chains
-    chains = []
-    visited = set()
-    for i in range(n):
-        if i in visited:
-            continue
-        chain = Chain()
-        chain.score = f[i]
-        j = i
-        while j != -1 and j not in visited:
-            chain.anchors.append(anchors[j])
-            visited.add(j)
-            j = p[j]
-        chain.anchors.reverse()  # Backtracking yields anchors in reverse order
-        chain.score = sum(anchor.score for anchor in chain.anchors)
-        chains.append(chain)
-
-    return chains
+        return optimal_chain, max_score
 
 
-anchors = [Anchor(1, 10, 10), Anchor(5, 15, 15), Anchor(10, 20, 20)]
-chains = mg_chain_dp(anchors, max_dist_x=10, max_dist_y=10, bw=5)
 
-for chain in chains:
-    print(f"Chain with {len(chain.anchors)} anchors, score: {chain.score}")
-    for anchor in chain.anchors:
-        print(f"  Anchor(query_pos={anchor.query_pos}, target_pos={anchor.target_pos}, score={anchor.score})")
+def test_chaining():
+    # Create sample matches: (start, end, score)
+    matches = [
+        (100, 150, 30),  # match 1
+        (200, 250, 35),  # match 2
+        (120, 170, 40),  # match 3 (overlaps with match 1)
+        (500, 550, 50),  # match 4 (distant)
+        (450, 500, 45),  # match 5 (near match 4)
+        (10, 50, 25)     # match 6 (low score, should not chain)
+    ]
+
+    # Initialize the chaining algorithm with a minimum score of 30
+    chain = Chain(min_score=30, max_distance=50)
+
+    # Perform chaining
+    optimal_chain, max_score = chain.chain_anchors(matches)
+
+    # Print the result
+    print(f"Optimal Chain: {optimal_chain}")
+    print(f"Maximum Score: {max_score}")
+
+
+test_chaining()
