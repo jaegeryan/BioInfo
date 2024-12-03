@@ -1,0 +1,53 @@
+import sys
+from bio import *
+
+sequences = List[seq]()
+seq_names = List[str]()
+seq_lens = List[int]()
+minimizer_index = Dict[Kmer[3], List[Tuple[int, int]]]
+
+with open('minimap2_index.txt', 'r') as f:
+    # 读取整个文件内容并按行分割
+    content = f.read()
+    lines = content.split('\n')
+    
+    if len(lines) < 3:
+                   print("索引文件格式错误：缺少元数据行", file=sys.stderr)
+                   sys.exit(1)
+               
+    k_line = lines[0].strip()
+    w_line = lines[1].strip()
+    num_seqs_line = lines[2].strip()
+    print(k_line)
+    print(w_line)
+    print(num_seqs_line)
+    k = int(k_line.split('=')[1])
+    w = int(w_line.split('=')[1])
+    num_seqs = int(num_seqs_line.split('=')[1])
+    print(k, w, num_seqs)
+    
+    current_line = 3
+    for _ in range(num_seqs):
+        if current_line >= len(lines):
+            break
+        line = lines[current_line].strip()
+        current_line += 1
+        if not line:
+            continue
+        parts = line.split('\t')
+        if len(parts) != 3:
+            print(f"序列信息格式错误：{line}", file=sys.stderr)
+            continue
+        name, length_str, sequence = parts
+        # print(name,length_str,sequence)
+        length = int(length_str)
+        # seq_names.append(name)
+        try:
+            length = int(length_str)
+        except ValueError:
+            print(f"序列长度格式错误：{length_str}", file=sys.stderr)
+            continue
+        seq_names.append(name)
+        seq_lens.append(length)
+        sequences.append(seq(sequence))
+    sys.exit(0)

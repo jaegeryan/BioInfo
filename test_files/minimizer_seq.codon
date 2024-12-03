@@ -1,0 +1,33 @@
+from bio import *
+
+def minimizer(s, k: Static[int], w: Static[int]):
+    """返回去重后的minimizer及其位置"""
+    assert len(s) >= w >= k
+    minimizers = []
+    seen_kmers = {}  # 记录每个k-mer最后一次出现的位置
+    
+    for i in range(len(s)-w+1):
+        window = s[i:i+w]
+        min_pos = i
+        min_kmer = Kmer[k](window[:k])
+        
+        for j in range(w-k+1):
+            kmer = Kmer[k](window[j:j+k])
+            canonical = min(kmer, ~kmer)
+            if canonical < min_kmer:
+                min_kmer = canonical
+                min_pos = i + j
+        
+        # 检查这个k-mer是否最近出现过
+        if min_kmer not in seen_kmers or min_pos - seen_kmers[min_kmer] >= w:
+            minimizers.append((min_pos, min_kmer))
+            seen_kmers[min_kmer] = min_pos
+    
+    return minimizers
+
+# 测试
+print(minimizer(s'AGCATACATAGCATAAAAAA', k=3, w=5))
+
+# s = s'AGCATACATAGCATAAAAAA'
+# for pos, min_kmer in minimizer(s):
+#     print(f"Position: {pos}, Minimizer: {min_kmer}")
