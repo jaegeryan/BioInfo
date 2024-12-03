@@ -112,7 +112,7 @@ def main():
     queries = read_fastq(query_file)
     
     # Initialize components
-    chain = Chain(min_score=params['min_chain_score'])
+    chain = Chain(min_score=params['min_chain_score'], max_distance=params['bw'] or 50) #50 is default if not specified
     aligner = Aligner(bandwidth=params['bw'])
     
     # Process each query
