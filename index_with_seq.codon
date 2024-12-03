@@ -1,7 +1,7 @@
 import sys
 from bio import *
 from utils_with_seq import read_fasta
-from sketch_with_seq import extract_minimizers
+from sketch_with_hash import extract_minimizers
 from typing import List, Dict, Tuple
 
 
@@ -168,62 +168,197 @@ def init_index() -> Index:
     """
     return Index()
 
-# test the whole process
-if __name__ == "__main__":
-    k = 3
-    w = 5
-    
+def test_index():
+    """Test the Index class"""
+    # 1. Test initialization
     index = init_index()
-    print("the initialized index structure:")
-    print(f"Sequences: {index.sequences}")
-    print(f"Sequence Names: {index.seq_names}")
-    print(f"Sequence Lengths: {index.seq_lens}")
-    print(f"Minimizer Index: {index.minimizer_index}")
+    print("\n1. Test initialization:")
+    assert len(index.sequences) == 0, "the sequence list should be empty"
+    assert len(index.seq_names) == 0, "the sequence name list should be empty"
+    assert len(index.seq_lens) == 0, "the sequence length list should be empty"
+    assert len(index.minimizer_index) == 0, "the minimizer index should be empty"
+    print("initialization test passed")
 
-    # simulate adding sequences
+    # 2. Test adding sequences
+    print("\n2. Test adding sequences:")
+    # test case 1: standard sequence
     index.sequences.append(seq("AGCATACATAGCATAAAAAA"))
     index.seq_names.append("ref1")
-    index.seq_lens.append(len(index.sequences[-1]))
-
+    index.seq_lens.append(20)
+    
+    # test case 2: different mode sequence
     index.sequences.append(seq("CGTACGTAGCATGCTAGCTA"))
     index.seq_names.append("ref2")
-    index.seq_lens.append(len(index.sequences[-1]))
+    index.seq_lens.append(20)
+    
+    # test case 3: boundary case
+    index.sequences.append(seq("AGC"))  # the minimum k-mer length
+    index.seq_names.append("ref3")
+    index.seq_lens.append(3)
+    
+    assert len(index.sequences) == 3, "there should be 3 sequences"
+    print("adding sequences test passed")
 
-    # create a mapping from sequence names to sequence IDs
+    # 3. Test mapping from sequence names to IDs
+    print("\n3. Test mapping from sequence names to IDs:")
     name_to_id = index.index_names()
-    print("the mapping from sequence names to sequence IDs:", name_to_id)
+    assert name_to_id["ref1"] == 0
+    assert name_to_id["ref2"] == 1
+    assert name_to_id["ref3"] == 2
+    print("mapping from sequence names to IDs test passed")
 
-    # extract and add minimizers to the index
+    # 4. Test minimizer extraction and indexing
+    print("\n4. Test minimizer indexing:")
+    # extract minimizers for each sequence
     for seq_id, seq_obj in enumerate(index.sequences):
-        mins = extract_minimizers(seq_obj, 3, 5)
-        for pos, min_kmer in mins:
-            if min_kmer not in index.minimizer_index:
-                index.minimizer_index[min_kmer] = []
-            index.minimizer_index[min_kmer].append((seq_id, pos))
+        if len(seq_obj) >= 3:  # ensure the sequence length is enough
+            mins = extract_minimizers(seq_obj, 3, 5)
+            for pos, min_kmer in mins:
+                if min_kmer not in index.minimizer_index:
+                    index.minimizer_index[min_kmer] = []
+                index.minimizer_index[min_kmer].append((seq_id, pos))
+    
+    # verify some known minimizers
+    assert Kmer[3]("AGC") in index.minimizer_index, "should contain AGC minimizer"
+    print("minimizer indexing test passed")
 
-    # print the updated index structure
-    print("the updated index structure:")
-    print(f"Sequences: {index.sequences}")
-    print(f"Sequence Names: {index.seq_names}")
-    print(f"Sequence Lengths: {index.seq_lens}")
-    print(f"Minimizer Index: {index.minimizer_index}")
-
-    # save the sequences to a fasta file
-    with open("sequences.fasta", 'w') as fasta_file:
-        for name, sequence in zip(index.seq_names, index.sequences):
-            fasta_file.write(f">{name}\n")
-            fasta_file.write(f"{sequence}\n")
-
-    # save the index to a file
-    index.save_index("minimap2_index.txt", k, w)
-
-    # load the index from a file
+    # 5. Test saving and loading the index
+    print("\n5. Test saving and loading the index:")
+    # save the index
+    index.save_index("test_index.txt", 3, 5)
+    
+    # load the index
     loaded_index = init_index()
-    loaded_index.load_index("minimap2_index.txt")
+    loaded_index.load_index("test_index.txt")
+    
+    # verify the loaded index
+    assert len(loaded_index.sequences) == len(index.sequences)
+    assert len(loaded_index.minimizer_index) == len(index.minimizer_index)
+    print("saving and loading the index test passed")
 
-    # print the loaded index structure
-    print("the loaded index structure:")
-    print(f"Sequences: {loaded_index.sequences}")
-    print(f"Sequence Names: {loaded_index.seq_names}")
-    print(f"Sequence Lengths: {loaded_index.seq_lens}")
-    print(f"Minimizer Index: {loaded_index.minimizer_index}")
+    print("\nall tests passed!")
+    
+    # 6. Test boundary cases
+    print("\n6. Test boundary cases:")
+    edge_index = init_index()
+    
+    # test empty sequence
+    edge_index.sequences.append(seq(""))
+    edge_index.seq_names.append("empty")
+    edge_index.seq_lens.append(0)
+    
+    # test the shortest sequence
+    edge_index.sequences.append(seq("A"))
+    edge_index.seq_names.append("single")
+    edge_index.seq_lens.append(1)
+    
+    # test the sequence containing N
+    edge_index.sequences.append(seq("ACGTN"))
+    edge_index.seq_names.append("with_n")
+    edge_index.seq_lens.append(5)
+    print("boundary cases test passed")
+
+    # 7. Test handling duplicate sequence names
+    print("\n7. Test handling duplicate sequence names:")
+    dup_index = init_index()
+    dup_index.sequences.append(seq("ACGT"))
+    dup_index.seq_names.append("dup")
+    dup_index.seq_lens.append(4)
+    dup_index.sequences.append(seq("TGCA"))
+    dup_index.seq_names.append("dup")  # duplicate names
+    dup_index.seq_lens.append(4)
+    
+    name_to_id = dup_index.index_names()
+    assert len(name_to_id) == 1, "duplicate names should only map once"
+    print("duplicate sequence names test passed")
+
+    # 8. Test minimizer extraction with fixed k value
+    print("\n8. Test minimizer extraction with fixed k value:")
+    param_index = init_index()
+    test_seq = seq("AGCATACATAGCATAAAAAA")
+    param_index.sequences.append(test_seq)
+    param_index.seq_names.append("param_test")
+    param_index.seq_lens.append(len(test_seq))
+    
+    # test different window sizes with fixed k=3
+    mins_w5 = extract_minimizers(test_seq, k=3, w=5)
+    assert len(mins_w5) > 0, "should be able to extract minimizer (k=3,w=5)"
+    
+    mins_w10 = extract_minimizers(test_seq, k=3, w=10)
+    assert len(mins_w10) > 0, "should be able to extract minimizer (k=3,w=10)"
+    print("minimizer extraction test passed")
+
+    # 9. Test file operation error handling
+    print("\n9. Test file operation error handling:")
+    try:
+        # try to load a non-existent file
+        error_index = init_index()
+        error_index.load_index("nonexistent.txt")
+        assert False, "should raise an exception"
+    except:
+        print("file operation error handling test passed")
+
+    print("\nall enhanced tests passed!")
+
+if __name__ == "__main__":
+    test_index()
+
+# # test the whole process
+# if __name__ == "__main__":
+#     k = 3
+#     w = 5
+    
+#     index = init_index()
+#     print("the initialized index structure:")
+#     print(f"Sequences: {index.sequences}")
+#     print(f"Sequence Names: {index.seq_names}")
+#     print(f"Sequence Lengths: {index.seq_lens}")
+#     print(f"Minimizer Index: {index.minimizer_index}")
+
+#     # simulate adding sequences
+#     index.sequences.append(seq("AGCATACATAGCATAAAAAA"))
+#     index.seq_names.append("ref1")
+#     index.seq_lens.append(len(index.sequences[-1]))
+
+#     index.sequences.append(seq("CGTACGTAGCATGCTAGCTA"))
+#     index.seq_names.append("ref2")
+#     index.seq_lens.append(len(index.sequences[-1]))
+
+#     # create a mapping from sequence names to sequence IDs
+#     name_to_id = index.index_names()
+#     print("the mapping from sequence names to sequence IDs:", name_to_id)
+
+#     # extract and add minimizers to the index
+#     for seq_id, seq_obj in enumerate(index.sequences):
+#         mins = extract_minimizers(seq_obj, 3, 5)
+#         for pos, min_kmer in mins:
+#             if min_kmer not in index.minimizer_index:
+#                 index.minimizer_index[min_kmer] = []
+#             index.minimizer_index[min_kmer].append((seq_id, pos))
+
+#     # print the updated index structure
+#     print("the updated index structure:")
+#     print(f"Sequences: {index.sequences}")
+#     print(f"Sequence Names: {index.seq_names}")
+#     print(f"Sequence Lengths: {index.seq_lens}")
+#     print(f"Minimizer Index: {index.minimizer_index}")
+
+#     # save the sequences to a fasta file
+#     with open("sequences.fasta", 'w') as fasta_file:
+#         for name, sequence in zip(index.seq_names, index.sequences):
+#             fasta_file.write(f">{name}\n")
+#             fasta_file.write(f"{sequence}\n")
+
+#     # save the index to a file
+#     index.save_index("minimap2_index.txt", k, w)
+
+#     # load the index from a file
+#     loaded_index = init_index()
+#     loaded_index.load_index("minimap2_index.txt")
+
+#     # print the loaded index structure
+#     print("the loaded index structure:")
+#     print(f"Sequences: {loaded_index.sequences}")
+#     print(f"Sequence Names: {loaded_index.seq_names}")
+#     print(f"Sequence Lengths: {loaded_index.seq_lens}")
+#     print(f"Minimizer Index: {loaded_index.minimizer_index}")

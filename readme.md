@@ -7,8 +7,8 @@ This is a student project of CSC 427 that implements the core features of Minima
 ## Project Structure
 bioinformatics/  
 ├── main.codon            # Main program entry  
-├── sketch.codon          # Minimizer calculation  
-├── index.codon           # Index building and searching  
+├── sketch_with_hash.codon # Minimizer calculation  
+├── index_with_seq.codon   # Index building and searching  
 ├── chain.codon           # Chaining algorithm  
-├── utils.codon           # Utility functions (FASTA/FASTQ readers)  
+├── utils_with_seq.codon   # Utility functions (FASTA/FASTQ readers)  
 └── readme.md             # Project documentation
