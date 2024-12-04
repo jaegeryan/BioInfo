@@ -13,124 +13,200 @@ Main function for minimap2 implementation
 Usage: codon main.codon [options] <ref.fa> <query.fq> > approx-mapping.paf
 
 Options:
-  -x STR      preset: sr, map-pb, map-ont, asm5, asm10 or splice
-  -n INT      mininum number of minimizers
   -m INT      mininum chaining score
-  -k INT      k-mer length
-  -w INT      minimizer window length
-  -r INT      band width
-  -c          output the cs tag
-  -M          output the MD tag
+  -k INT      k-mer length # this cannot be implemented as Static[int]
+  -w INT      minimizer window length # this cannot be implemented as Static[int]
 """
 
-def parse_args():
-    # default parameters
-    params = {
-        'preset': None,
-        'min_cnt': None,
-        'min_chain_score': None,
-        'k': 15,
-        'w': 10,
-        'bw': None,
-        'out_cs': False,
-        'out_MD': False
-    }
+# def parse_args():
+#     # default parameters
+#     params = {
+#         'preset': None,
+#         'min_cnt': None,
+#         'min_chain_score': None,
+#         'k': 15,
+#         'w': 10,
+#         'bw': None,
+#         'out_cs': False,
+#         'out_MD': False
+#     }
     
-    args = sys.argv[1:]
-    i = 0
-    while i < len(args):
-        if args[i].startswith('-'):
-            if args[i] == '-x':
-                params['preset'] = args[i+1]
-                i += 2
-            elif args[i] == '-n':
-                params['min_cnt'] = int(args[i+1])
-                i += 2
-            elif args[i] == '-m':
-                params['min_chain_score'] = int(args[i+1])
-                i += 2
-            elif args[i] == '-k':
-                params['k'] = int(args[i+1])
-                i += 2
-            elif args[i] == '-w':
-                params['w'] = int(args[i+1])
-                i += 2
-            elif args[i] == '-r':
-                params['bw'] = int(args[i+1])
-                i += 2
-            elif args[i] == '-c':
-                params['out_cs'] = True
-                i += 1
-            elif args[i] == '-M':
-                params['out_MD'] = True
-                i += 1
-        else:
+#     args = sys.argv[1:]
+#     i = 0
+#     while i < len(args):
+#         if args[i].startswith('-'):
+#             if args[i] == '-x':
+#                 params['preset'] = args[i+1]
+#                 i += 2
+#             elif args[i] == '-n':
+#                 params['min_cnt'] = int(args[i+1])
+#                 i += 2
+#             elif args[i] == '-m':
+#                 params['min_chain_score'] = int(args[i+1])
+#                 i += 2
+#             elif args[i] == '-k':
+#                 params['k'] = int(args[i+1])
+#                 i += 2
+#             elif args[i] == '-w':
+#                 params['w'] = int(args[i+1])
+#                 i += 2
+#             elif args[i] == '-r':
+#                 params['bw'] = int(args[i+1])
+#                 i += 2
+#             elif args[i] == '-c':
+#                 params['out_cs'] = True
+#                 i += 1
+#             elif args[i] == '-M':
+#                 params['out_MD'] = True
+#                 i += 1
+#         else:
+#             break
+    
+#     # check if the number of input files is correct
+#     if len(args[i:]) != 2:
+#         print(__doc__)
+#         sys.exit(1)
+    
+#     return params, args[i], args[i+1]
+
+# def get_preset_params(preset: str) -> dict:
+#     """Return preset parameters"""
+#     if preset == "sr":  # short read
+#         return {'k': 15, 'w': 10, 'min_chain_score': 40}
+#     elif preset == "map-pb":  # PacBio reads
+#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
+#     elif preset == "map-ont":  # Oxford Nanopore reads
+#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
+#     elif preset == "asm5":  # asm-to-ref mapping, divergence <= 5%
+#         return {'k': 19, 'w': 10, 'min_chain_score': 50}
+#     elif preset == "asm10":  # asm-to-ref mapping, divergence <= 10%
+#         return {'k': 19, 'w': 10, 'min_chain_score': 50}
+#     elif preset == "splice":  # long-read spliced alignment
+#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
+#     return {}
+
+# def main():
+#     # parse arguments
+#     params, ref_file, query_file = parse_args()
+    
+#     # if preset is specified, update parameters
+#     if params['preset']:
+#         preset_params = get_preset_params(params['preset'])
+#         params.update(preset_params)
+    
+#     # Read reference sequences
+#     references = read_fasta(ref_file)
+    
+#     # Build index
+#     index = Index(k=params['k'], w=params['w'], 
+#                  min_cnt=params['min_cnt'])
+#     for header, seq in references:
+#         index.build(seq)
+    
+#     # Process queries
+#     queries = read_fastq(query_file)
+    
+#     # Initialize components
+#     chain = Chain(min_score=params['min_chain_score'], max_distance=params['bw'] or 50) #50 is default if not specified
+#     aligner = Aligner(bandwidth=params['bw'])
+    
+#     # Process each query
+#     for qheader, qseq in queries:
+#         # Find matches
+#         matches = index.query(qseq)
+        
+#         # Chain matches
+#         chains = chain.chain_anchors(matches)
+        
+#         # Align and output results
+#         for ref_header, ref_seq in references:
+#             for chain in chains:
+#                 alignment = aligner.align(qseq, ref_seq, chain,
+#                                        out_cs=params['out_cs'],
+#                                        out_MD=params['out_MD'])
+#                 # output PAF format
+#                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
+
+def test_with_genome():
+    """
+    test the whole process with real genome data:
+    1. read the first sequence of sacCer3.fa
+    2. extract minimizers
+    3. build and query the index
+    """
+    print("=== start genome test ===")
+    
+    # 1. read sacCer3.fa
+    print("\n1. read sacCer3.fa")
+    sequences = read_fasta("sacCer3.fa")
+    header, genome = next(sequences)  # get the first sequence
+    
+    print(f"genome information:")
+    print(f"name: {header}")
+    print(f"length: {len(genome)}")
+    print(f"first 50bp: {genome[:50]}")
+    
+    # 2. test minimizer extraction
+    print("\n2. test minimizer extraction")
+    
+    # for demonstration, use the first 1000bp for testing
+    test_region = genome[:1000]
+    print(f"\nuse the first 1000bp for testing")
+    print(f"testing region length: {len(test_region)}")
+    
+    minimizers = extract_minimizers(test_region, k=15, w=10)
+    print(f"number of minimizers found: {len(minimizers)}")
+    print("\nfirst 5 minimizers:")
+    count = 0
+    for pos, min_kmer in minimizers:
+        if count >= 5:
             break
+        print(f"position: {pos}, k-mer: {min_kmer}")
+        count += 1
     
-    # check if the number of input files is correct
-    if len(args[i:]) != 2:
-        print(__doc__)
-        sys.exit(1)
+    # 3. test index building and querying
+    print("\n3. test index building and querying")
     
-    return params, args[i], args[i+1]
+    # initialize index
+    index = init_index()
+    
+    # add sequence to index
+    index.sequences.append(test_region)
+    index.seq_names.append(header)
+    index.seq_lens.append(len(test_region))
+    
+    # add minimizers to index
+    print("\nbuilding index...")
+    for pos, min_kmer in minimizers:
+        if min_kmer not in index.minimizer_index:
+            index.minimizer_index[min_kmer] = []
+        index.minimizer_index[min_kmer].append((0, pos))
+    
+    print(f"index statistics:")
+    print(f"- number of sequences: {len(index.sequences)}")
+    print(f"- number of different minimizers: {len(index.minimizer_index)}")
+    
+    # test querying
+    print("\ntest querying...")
+    # use a 100bp region as the query sequence
+    query_seq = test_region[200:300]
+    print(f"query sequence length: {len(query_seq)}")
+    print(f"query sequence: {query_seq}")
+    
+    # extract minimizers from query sequence
+    query_mins = extract_minimizers(query_seq, k=15, w=10)
+    print(f"number of minimizers in query sequence: {len(query_mins)}")
+    
+    # find matches
+    matches = 0
+    for _, min_kmer in query_mins:
+        if min_kmer in index.minimizer_index:
+            matches += len(index.minimizer_index[min_kmer])
+    
+    print(f"found matches: {matches}")
 
-def get_preset_params(preset: str) -> dict:
-    """Return preset parameters"""
-    if preset == "sr":  # short read
-        return {'k': 15, 'w': 10, 'min_chain_score': 40}
-    elif preset == "map-pb":  # PacBio reads
-        return {'k': 15, 'w': 5, 'min_chain_score': 30}
-    elif preset == "map-ont":  # Oxford Nanopore reads
-        return {'k': 15, 'w': 5, 'min_chain_score': 30}
-    elif preset == "asm5":  # asm-to-ref mapping, divergence <= 5%
-        return {'k': 19, 'w': 10, 'min_chain_score': 50}
-    elif preset == "asm10":  # asm-to-ref mapping, divergence <= 10%
-        return {'k': 19, 'w': 10, 'min_chain_score': 50}
-    elif preset == "splice":  # long-read spliced alignment
-        return {'k': 15, 'w': 5, 'min_chain_score': 30}
-    return {}
-
-def main():
-    # parse arguments
-    params, ref_file, query_file = parse_args()
+    print("\n=== test passed ===")
     
-    # if preset is specified, update parameters
-    if params['preset']:
-        preset_params = get_preset_params(params['preset'])
-        params.update(preset_params)
-    
-    # Read reference sequences
-    references = read_fasta(ref_file)
-    
-    # Build index
-    index = Index(k=params['k'], w=params['w'], 
-                 min_cnt=params['min_cnt'])
-    for header, seq in references:
-        index.build(seq)
-    
-    # Process queries
-    queries = read_fastq(query_file)
-    
-    # Initialize components
-    chain = Chain(min_score=params['min_chain_score'], max_distance=params['bw'] or 50) #50 is default if not specified
-    aligner = Aligner(bandwidth=params['bw'])
-    
-    # Process each query
-    for qheader, qseq in queries:
-        # Find matches
-        matches = index.query(qseq)
-        
-        # Chain matches
-        chains = chain.chain_anchors(matches)
-        
-        # Align and output results
-        for ref_header, ref_seq in references:
-            for chain in chains:
-                alignment = aligner.align(qseq, ref_seq, chain,
-                                       out_cs=params['out_cs'],
-                                       out_MD=params['out_MD'])
-                # output PAF format
-                print(f"{qheader}\t{len(qseq)}\t{alignment}")
-
 if __name__ == "__main__":
-    main()
+    # main()
+    test_with_genome()
