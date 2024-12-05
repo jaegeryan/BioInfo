@@ -3,9 +3,10 @@ import sys
 from sketch_with_hash import extract_minimizers 
 from index_with_seq import Index, init_index
 from utils_with_seq import read_fasta, read_fastq, revcomp 
+from chain import Chain
 
 # TODO
-# from chain import Chain
+
 # from align import Aligner
 
 """
@@ -133,6 +134,7 @@ def test_with_genome():
     1. read the first sequence of sacCer3.fa
     2. extract minimizers
     3. build and query the index
+    4. chain matches
     """
     print("=== start genome test ===")
     
@@ -198,12 +200,29 @@ def test_with_genome():
     print(f"number of minimizers in query sequence: {len(query_mins)}")
     
     # find matches
-    matches = 0
+    matchesval = 0
     for _, min_kmer in query_mins:
         if min_kmer in index.minimizer_index:
-            matches += len(index.minimizer_index[min_kmer])
+            matchesval += len(index.minimizer_index[min_kmer])
     
-    print(f"found matches: {matches}")
+    matches = []
+    for query_pos, min_kmer in query_mins:
+        if min_kmer in index.minimizer_index:
+            for ref_seq_idx, ref_pos in index.minimizer_index[min_kmer]:
+                matches.append((query_pos, ref_pos, 1))  # Assume a score of 1 for simplicity
+
+
+    
+    print(f"found matches: {matchesval}")
+    print(f"matches: {matches}")
+
+
+    #4. Test chaining
+    print("\nTest chaining")
+    chain = Chain(min_score=1, max_distance=50)
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print(f"Optimal Chain: {optimal_chain}")
+    print(f"Max score: {max_score}")
 
     print("\n=== test passed ===")
     
