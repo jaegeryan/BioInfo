@@ -139,8 +139,10 @@ def test_with_genome():
     print("=== start genome test ===")
     
     # 1. read sacCer3.fa
-    print("\n1. read sacCer3.fa")
-    sequences = read_fasta("sacCer3.fa")
+    # print("\n1. read sacCer3.fa")
+    # sequences = read_fasta("sacCer3.fa")
+    print("\n1. read genome.fa")
+    sequences = read_fasta("genome.fa")
     header, genome = next(sequences)  # get the first sequence
     
     print(f"genome information:")
