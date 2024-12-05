@@ -199,27 +199,24 @@ def test_with_genome():
     query_mins = extract_minimizers(query_seq, k=15, w=10)
     print(f"number of minimizers in query sequence: {len(query_mins)}")
     
-    # find matches
-    matchesval = 0
-    for _, min_kmer in query_mins:
-        if min_kmer in index.minimizer_index:
-            matchesval += len(index.minimizer_index[min_kmer])
-    
+
+    #Find matches
     matches = []
     for query_pos, min_kmer in query_mins:
         if min_kmer in index.minimizer_index:
             for ref_seq_idx, ref_pos in index.minimizer_index[min_kmer]:
-                matches.append((query_pos, ref_pos, 1))  # Assume a score of 1 for simplicity
+                matches.append((query_pos, ref_pos, 1))  
+                # Think a scoring system may need to be added. 1 is just a placeholder for now
 
 
     
-    print(f"found matches: {matchesval}")
+    print(f"found matches: {len(matches)}")
     print(f"matches: {matches}")
 
 
     #4. Test chaining
     print("\nTest chaining")
-    chain = Chain(min_score=1, max_distance=50)
+    chain = Chain(min_score=1, max_distance=3)
     optimal_chain, max_score = chain.chain_anchors(matches)
     print(f"Optimal Chain: {optimal_chain}")
     print(f"Max score: {max_score}")
