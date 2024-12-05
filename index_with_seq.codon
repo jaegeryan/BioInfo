@@ -24,7 +24,7 @@ class Index:
         self.seq_names.append(name)
         self.seq_lens.append(len(sequence))
         
-        # 立即为这个序列建立minimizer索引
+        # create minimizer index for the sequence
         minimizers = extract_minimizers(sequence, k=15, w=10)
         for pos, min_kmer in minimizers:
             if min_kmer not in self.minimizer_index:
@@ -176,7 +176,8 @@ class Index:
                     gaps += 1
         
         return float(max(0, score))  # No negative score
-
+    
+    # Similar to the desired result of chain.codon but different implementation methods
     def _filter_and_chain_matches(self, matches: List[Tuple[int, int, float]]) -> List[Tuple[int, int, float]]:
         """
         Use minimap2's chaining strategy
