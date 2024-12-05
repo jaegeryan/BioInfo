@@ -3,161 +3,222 @@ from bio import *
 from utils_with_seq import read_fasta
 from sketch_with_hash import extract_minimizers
 from typing import List, Dict, Tuple
+from chain import Chain
 
 
 class Index:
     sequences = List[seq]()
     seq_names = List[str]()
     seq_lens = List[int]()
-    minimizer_index = Dict[Kmer[15], List[Tuple[int, int]]]()
+    minimizer_index = Dict[str, List[Tuple[int, int]]]()
 
     def __init__(self):
         self.sequences = []            # List[seq]
         self.seq_names = []            # List[str]
         self.seq_lens = []             # List[int]
-        self.minimizer_index = {}      # Dict[Kmer[15], List[Tuple[int, int]]]
-        
-    def index_names(self) -> Dict[str, int]:
-        """
-        create a mapping from sequence names to sequence IDs
-
-        Returns:
-            Dict[str, int]: a mapping from sequence names to sequence IDs
-        """
-        name_to_id: Dict[str, int] = {}
-        has_dup: bool = False
-        for i, name in enumerate(self.seq_names):
-            if name in name_to_id:
-                has_dup = True
-            else:
-                name_to_id[name] = i
-        if has_dup:
-            print("[WARNING] some database sequences have the same name")
-        return name_to_id
+        self.minimizer_index = {}      # Dict[str, List[Tuple[int, int]]]
     
-    def save_index(self, filepath: str, k: int, w: int):
-        """
-        save the index to a file
-
-        Args:
-            filepath (str): the path to save the file
-            k (int): the length of k-mer
-            w (int): the window size
-        """
+    def add_sequence(self, sequence: seq, name: str = ""):
+        seq_id = len(self.sequences)
+        self.sequences.append(sequence)
+        self.seq_names.append(name)
+        self.seq_lens.append(len(sequence))
+        
+        # 立即为这个序列建立minimizer索引
+        minimizers = extract_minimizers(sequence, k=15, w=10)
+        for pos, min_kmer in minimizers:
+            if min_kmer not in self.minimizer_index:
+                self.minimizer_index[min_kmer] = []
+            self.minimizer_index[min_kmer].append((seq_id, pos))
+    
+    def save_index(self, filepath: str):
         try:
             with open(filepath, 'w') as f:
-                # write the index metadata
-                f.write(f"k={k}\n")
-                f.write(f"w={w}\n")
                 f.write(f"num_seqs={len(self.seq_lens)}\n")
                 
-                # write the sequence information
                 for name, length, sequence in zip(self.seq_names, self.seq_lens, self.sequences):
                     f.write(f"{name}\t{length}\t{sequence}\n")
-                
-                # write the minimizer index
+
                 for min_kmer, positions in self.minimizer_index.items():
                     pos_str = ",".join([f"{seq_id}:{pos}" for seq_id, pos in positions])
-                    f.write(f"k'{min_kmer}'\t{pos_str}\n")
-            print(f"the index has been saved to {filepath}")
+                    f.write(f"{min_kmer}\t{pos_str}\n")
+            print(f"index saved to {filepath}")
         except IOError as e:
-            print(f"Error writing file {filepath}: {e}", file=sys.stderr)
+            print(f"error saving file {filepath}: {e}", file=sys.stderr)
             sys.exit(1)
 
     def load_index(self, index_filepath: str):
-       """
-       load the index from a file, including the sequences and the minimizer index
+        try:
+            with open(index_filepath, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+                
+                if len(lines) < 1:
+                    print("index file format error: missing metadata", file=sys.stderr)
+                    sys.exit(1)
+                
+                num_seqs = int(lines[0].split('=')[1])
+                
+                current_line = 1
+                for _ in range(num_seqs):
+                    if current_line >= len(lines):
+                        break
+                    line = lines[current_line].strip()
+                    current_line += 1
+                    if not line:
+                        continue
+                    
+                    parts = line.split('\t')
+                    if len(parts) != 3:
+                        print(f"sequence information format error: {line}", file=sys.stderr)
+                        continue
+                        
+                    name, length_str, sequence = parts
+                    try:
+                        length = int(length_str)
+                        self.seq_names.append(name)
+                        self.seq_lens.append(length)
+                        self.sequences.append(seq(sequence))
+                    except ValueError:
+                        print(f"sequence length format error: {length_str}", file=sys.stderr)
+                        continue
+                
+                for line in lines[current_line:]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                        
+                    parts = line.split('\t')
+                    if len(parts) != 2:
+                        continue
+                        
+                    min_kmer, pos_str = parts
+                    positions = []
+                    
+                    for pos_pair in pos_str.split(','):
+                        if ':' not in pos_pair:
+                            continue
+                        seq_id_str, pos_str = pos_pair.split(':')
+                        try:
+                            seq_id = int(seq_id_str)
+                            pos = int(pos_str)
+                            positions.append((seq_id, pos))
+                        except ValueError:
+                            continue
+                            
+                    self.minimizer_index[min_kmer] = positions
+                    
+            print(f"index loaded from {index_filepath}")
+        except IOError as e:
+            print(f"error reading file {index_filepath}: {e}", file=sys.stderr)
+            sys.exit(1)
+            
+    def query_sequence(self, query_seq: seq) -> List[Tuple[int, int, float]]:
 
-       Args:
-           index_filepath (str): the path to load the index file
-       """
-       try:
-           with open(index_filepath, 'r') as f:
-               # read the whole file content and split it by lines
-               content = f.read()
-               lines = content.split('\n')
-               
-               if len(lines) < 3:
-                   print("the index file format error: missing metadata lines", file=sys.stderr)
-                   sys.exit(1)
-               
-               k_line = lines[0].strip()
-               w_line = lines[1].strip()
-               num_seqs_line = lines[2].strip()
-               try:
-                   k = int(k_line.split('=')[1])
-                   w = int(w_line.split('=')[1])
-                   num_seqs = int(num_seqs_line.split('=')[1])
-               except IndexError:
-                   print("the index file format error: missing metadata lines", file=sys.stderr)
-                   sys.exit(1)
-               except ValueError:
-                   print("the index file format error: cannot convert to integer", file=sys.stderr)
-                   sys.exit(1)
-               
-               # read the sequence information
-               current_line = 3
-               for _ in range(num_seqs):
-                   if current_line >= len(lines):
-                       break
-                   line = lines[current_line].strip()
-                   current_line += 1
-                   if not line:
-                       continue
-                   parts = line.split('\t')
-                   if len(parts) != 3:
-                       print(f"the sequence information format error: {line}", file=sys.stderr)
-                       continue
-                   name, length_str, sequence = parts
-                   try:
-                       length = int(length_str)
-                   except ValueError:
-                       print(f"the sequence length format error: {length_str}", file=sys.stderr)
-                       continue
-                   self.seq_names.append(name)
-                   self.seq_lens.append(length)
-                   self.sequences.append(seq(sequence))
-               
-               # read the minimizer index
-               for line in lines[current_line:]:
-                   line = line.strip()
-                   if not line:
-                       continue
-                   parts = line.split('\t')
-                   if len(parts) != 2:
-                       print(f"the minimizer index line format error: {line}", file=sys.stderr)
-                       continue
-                   min_kmer_str, pos_str = parts
-                   
-                   # parse the k-mer, remove the prefix k' and the suffix '
-                   if min_kmer_str.startswith("k'") and min_kmer_str.endswith("'"):
-                       min_kmer = Kmer[15](min_kmer_str[2:-1])
-                   else:
-                       min_kmer = Kmer[15](min_kmer_str)
-                   
-                   positions = []
-                   pos_pairs = pos_str.split(',')
-                   for pos_pair in pos_pairs:
-                       if ':' in pos_pair:
-                           parts = pos_pair.split(':')
-                           if len(parts) != 2:
-                               continue
-                           try:
-                               seq_id = int(parts[0])
-                               pos = int(parts[1])
-                               positions.append((seq_id, pos))
-                           except ValueError:
-                               print(f"Invalid position pair: {pos_pair}", file=sys.stderr)
-                               continue
-                   self.minimizer_index[min_kmer] = positions
-           print(f"the index has been loaded from {index_filepath}")
-       except IOError as e:
-           print(f"Error reading file {index_filepath}: {e}", file=sys.stderr)
-           sys.exit(1)
-       except Exception as e:
-           print(f"Error processing file {index_filepath}: {e}", file=sys.stderr)
-           sys.exit(1)
-    
+        matches = []
+        k = 15
+        w = 10
+        min_score = 10
+        
+        query_mins = extract_minimizers(query_seq, 15, 10)
+        
+        # 2. Check matches
+        for q_pos, q_min in query_mins:
+            if q_min in self.minimizer_index:
+                for ref_id, r_pos in self.minimizer_index[q_min]:
+                    # Check minimizer position and its surroundings
+                    for offset in range(-5, 6):  # -5 to +5 offset
+                        if q_pos + offset >= 0 and r_pos + offset >= 0:
+                            try:
+                                query_kmer = query_seq[q_pos+offset:q_pos+offset+k]
+                                ref_kmer = self.sequences[ref_id][r_pos+offset:r_pos+offset+k]
+                                weight = self._calculate_weight(query_kmer, ref_kmer)
+                                if weight > 0:
+                                    # print(f"\nQuery position {q_pos+offset}, Ref position {r_pos+offset}")
+                                    # print(f"Query kmer: {query_kmer}")
+                                    # print(f"Ref kmer:   {ref_kmer}")
+                                    # print(f"Weight: {weight}")
+                                    matches.append((q_pos+offset, r_pos+offset, weight))
+                            except:
+                                continue
+        
+        return matches
+
+    def _calculate_weight(self, query_kmer: seq, ref_kmer: seq) -> float:
+        """
+        Use minimap2's scoring scheme to calculate the weight
+        """
+        if len(query_kmer) != len(ref_kmer):
+            return 0.0
+        
+        # minimap2's scoring parameters
+        match_score = 2
+        mismatch_score = -4
+        gap_open = -4
+        gap_extend = -2
+        
+        # Calculate the base score
+        score = 0
+        matches = 0
+        gaps = 0
+        
+        for q, r in zip(str(query_kmer), str(ref_kmer)):
+            if q == r:
+                score += match_score
+                matches += 1
+            else:
+                score += mismatch_score
+                if q == '-' or r == '-':
+                    if gaps == 0:
+                        score += gap_open
+                    else:
+                        score += gap_extend
+                    gaps += 1
+        
+        return float(max(0, score))  # No negative score
+
+    def _filter_and_chain_matches(self, matches: List[Tuple[int, int, float]]) -> List[Tuple[int, int, float]]:
+        """
+        Use minimap2's chaining strategy
+        """
+        if not matches:
+            return []
+        
+        # minimap2's chaining parameters
+        max_gap = 10000      # Maximum allowed gap
+        min_chain_score = 40 # Minimum chaining score
+        max_chain_skip = 25  # Maximum skip times
+        
+        # 1. Sort matches by query position
+        matches.sort(key=lambda x: (x[0], x[1]))
+        
+        # 2. Merge adjacent matches
+        merged = []
+        current = matches[0]
+        
+        for next_match in matches[1:]:
+            q_gap = next_match[0] - (current[0] + 15)
+            r_gap = next_match[1] - (current[1] + 15)
+            
+            # Use minimap2's chaining conditions
+            if (abs(q_gap) <= max_gap and 
+                abs(r_gap) <= max_gap and
+                abs(abs(q_gap) - abs(r_gap)) <= max_gap * 0.05):  # Allow 5% difference
+                # Merge matches, accumulate weights
+                current = (
+                    current[0],
+                    current[1],
+                    current[2] + next_match[2]
+                )
+            else:
+                if current[2] >= min_chain_score:  # Only keep chains with score higher than minimum score
+                    merged.append(current)
+                current = next_match
+        
+        if current[2] >= min_chain_score:
+            merged.append(current)
+        
+        return merged
 
 def init_index() -> Index:
     """
@@ -168,190 +229,121 @@ def init_index() -> Index:
     """
     return Index()
 
-def test_index():
-    """Test the Index class"""
-    # 1. Test initialization
+def test_index_operations():
+    print("\n=== Test index operations ===")
+    
+    # 1. Initialize index
+    print("\n1. Initialize index")
     index = init_index()
-    print("\n1. Test initialization:")
-    assert len(index.sequences) == 0
-    assert len(index.seq_names) == 0
-    assert len(index.seq_lens) == 0
-    assert len(index.minimizer_index) == 0
-    print("initialization test passed")
-
-    # 2. Test adding sequences
-    print("\n2. Test adding sequences:")
-    # test case 1: standard sequence
-    index.sequences.append(seq("AGCATACATAGCATAAAAAA"))
-    index.seq_names.append("ref1")
-    index.seq_lens.append(20)
+    assert len(index.sequences) == 0, "Initial sequence list should be empty"
+    assert len(index.minimizer_index) == 0, "Initial minimizer index should be empty"
+    print("✓ Index initialized successfully")
     
-    # test case 2: different mode sequence
-    index.sequences.append(seq("CGTACGTAGCATGCTAGCTA"))
-    index.seq_names.append("ref2")
-    index.seq_lens.append(20)
+    # 2. Add sequences and build index
+    print("\n2. Add sequences and build index")
+    test_seq = seq("CCACACCACACCCACACACCCACACACCACACCACACACCACACCACACCCACACACACACATCCTAACACTACCCTAACACAGCCCTAATCTAACCCTGGCCAACCTGTCTCTCAACTTACCCTCCATTACCCTGCCTCCACTCGTTACCCTGTCCCATTCAACCATACCACTCCGAACCACCATCCATCCCTCTACTTACTACCACTCACCCACCGTTACCCTCCAATTACCCATATCCAACCCACTG")
+    index.add_sequence(test_seq, "test_seq")
     
-    # test case 3: boundary case - make sure length >= k=15
-    index.sequences.append(seq("AGCTAGCTAGCTAGTACGTACGTACGTA"))  # 15bp sequence
-    index.seq_names.append("ref3")
-    index.seq_lens.append(28)
+    print(f"Sequence length: {len(test_seq)}")
+    print(f"Minimizer index size: {len(index.minimizer_index)}")
+    print(f"Some minimizers in the index:")
+    sample_count = 0
+    for min_kmer, positions in index.minimizer_index.items():
+        if sample_count < 5:  # only show 5 examples
+            print(f"  {min_kmer}: {positions}")
+            sample_count += 1
+    print("✓ Sequences added and index built successfully")
     
-    assert len(index.sequences) == 3
-    print("adding sequences test passed")
-
-    # 4. Test minimizer extraction and indexing
-    print("\n4. Test minimizer indexing:")
-    # extract minimizers for each sequence
-    for seq_id, seq_obj in enumerate(index.sequences):
-        if len(seq_obj) >= 15:  # ensure the sequence length is enough for k=15
-            mins = extract_minimizers(seq_obj, 15, 10)  # use k=15, w=10
-            for pos, min_kmer in mins:
-                if min_kmer not in index.minimizer_index:
-                    index.minimizer_index[min_kmer] = []
-                index.minimizer_index[min_kmer].append((seq_id, pos))
+    # 3. Save index
+    print("\n3. Save index to file")
+    index.save_index("test_index.txt")
+    print("✓ Index saved successfully")
     
-    # modify the verification method
-    assert len(index.minimizer_index) > 0, "should contain minimizers"
-    print("minimizer indexing test passed")
-
-    # 5. Test saving and loading the index
-    print("\n5. Test saving and loading the index:")
-    # modify the saving parameters to k=15
-    index.save_index("test_index.txt", 15, 10)
-    
-    # load the index
+    # 4. Load index
+    print("\n4. Load index from file")
     loaded_index = init_index()
     loaded_index.load_index("test_index.txt")
     
-    # verify the loaded index
-    assert len(loaded_index.sequences) == len(index.sequences)
-    assert len(loaded_index.minimizer_index) == len(index.minimizer_index)
-    print("saving and loading the index test passed")
+    # Verify loaded index
+    assert len(loaded_index.sequences) == len(index.sequences), "Loaded sequence count mismatch"
+    assert len(loaded_index.minimizer_index) == len(index.minimizer_index), "Loaded minimizer index size mismatch"
+    assert loaded_index.seq_names[0] == "test_seq", "Loaded sequence name mismatch"
+    
+    print("Verify loaded index:")
+    print(f"   Sequence count: {len(loaded_index.sequences)}")
+    print(f"  Minimizer index size: {len(loaded_index.minimizer_index)}")
+    print(f"   Sequence name: {loaded_index.seq_names[0]}")
+    print("✓ Index loaded and verified successfully")
+    
+    # 5. Compare original index and loaded index
+    print("\n5. Compare original index and loaded index")
+    # Check some minimizers are the same
+    sample_count = 0
+    for min_kmer in index.minimizer_index:
+        if sample_count < 3:  # only show 3 examples
+            original_positions = index.minimizer_index[min_kmer]
+            loaded_positions = loaded_index.minimizer_index[min_kmer]
+            print(f"Minimizer '{min_kmer}':")
+            print(f"  Original positions: {original_positions}")
+            print(f"  Loaded positions: {loaded_positions}")
+            assert original_positions == loaded_positions, f"Positions mismatch: {min_kmer}"
+            sample_count += 1
+    print("✓ Index comparison successful")
 
-    print("\nall tests passed!")
     
-    # 6. Test boundary cases
-    print("\n6. Test boundary cases:")
-    edge_index = init_index()
     
-    # test empty sequence
-    edge_index.sequences.append(seq(""))
-    edge_index.seq_names.append("empty")
-    edge_index.seq_lens.append(0)
+def test_query():
+    print("\n=== Test sequence query and chaining (minimap2 parameters) ===")
     
-    # test the shortest sequence
-    edge_index.sequences.append(seq("A"))
-    edge_index.seq_names.append("single")
-    edge_index.seq_lens.append(1)
+    # 1. Create index
+    index = init_index()
+    ref_seq = seq("CCACACCACACCCACACACCCACACACCACACCACACACCACACCACACCCACACACACACATCCTAACACTACCCTAACACAGCCCTAATCTAACCCTGGCCAACCTGTCTCTCAACTTACCCTCCATTACCCTGCCTCCACTCGTTACCCTGTCCCATTCAACCATACCACTCCGAACCACCATCCATCCCTCTACTTACTACCACTCACCCACCGTTACCCTCCAATTACCCATATCCAACCCACTG")
+    index.add_sequence(ref_seq, "ref")
     
-    # test the sequence containing N
-    edge_index.sequences.append(seq("ACGTN"))
-    edge_index.seq_names.append("with_n")
-    edge_index.seq_lens.append(5)
-    print("boundary cases test passed")
+    # 2. Test exact matches chaining
+    print("\n1. Test exact matches chaining")
+    # get a long fragment, containing multiple possible matches
+    exact_query = seq(str(ref_seq[10:100]))
+    print(f"Query sequence length: {len(exact_query)}")
+    print(f"Query region: 10-100")
+    matches = index.query_sequence(exact_query)
+    print(f"Chained matches: {matches}")
+    chain = Chain(min_score=30, max_distance=50)
+    optimal_chain, max_score = chain.chain_anchors(matches)
+    print("Various matches")
+    print(f"Optimal chain (various chains): {optimal_chain}")
+    print(f"Maximum score: {max_score}\n")
+    
+    
+    
+    # 3. Test overlapping matches chaining
+    print("\n2. Test overlapping matches chaining")
+    # get two adjacent regions
+    overlap_query = seq(str(ref_seq[50:150]))
+    print(f"Query sequence length: {len(overlap_query)}")
+    print(f"Query region: 50-150")
+    matches = index.query_sequence(overlap_query)
+    print(f"Chained matches: {matches}")
+    
+    # 4. Test chaining with gaps
+    print("\n3. Test chaining with gaps")
+    # get two regions with gaps
+    gap_query = seq(str(ref_seq[20:50]) + str(ref_seq[100:130]))
+    print(f"Query sequence length: {len(gap_query)}")
+    print(f"Query region: 20-50 + 100-130")
+    matches = index.query_sequence(gap_query)
+    print(f"Chained matches: {matches}")
+    
+    # 5. Test multiple chaining
+    print("\n4. Test multiple chaining")
+    # get multiple regions with gaps
+    multi_query = seq(str(ref_seq[10:30]) + str(ref_seq[50:70]) + str(ref_seq[90:110]))
+    print(f"Query sequence length: {len(multi_query)}")
+    print(f"Query region: 10-30 + 50-70 + 90-110")
+    matches = index.query_sequence(multi_query)
+    print(f"Chained matches: {matches}")
 
-    # 7. Test handling duplicate sequence names
-    print("\n7. Test handling duplicate sequence names:")
-    dup_index = init_index()
-    dup_index.sequences.append(seq("ACGT"))
-    dup_index.seq_names.append("dup")
-    dup_index.seq_lens.append(4)
-    dup_index.sequences.append(seq("TGCA"))
-    dup_index.seq_names.append("dup")  # duplicate names
-    dup_index.seq_lens.append(4)
-    
-    name_to_id = dup_index.index_names()
-    assert len(name_to_id) == 1, "duplicate names should only map once"
-    print("duplicate sequence names test passed")
-
-     # 8. Test minimizer extraction with fixed k value
-    print("\n8. Test minimizer extraction with fixed k value:")
-    param_index = init_index()
-    # 使用足够长的测试序列
-    test_seq = seq("AGCATACATAGCATAAAAAAAAAAAAAAA")  # 30bp
-    param_index.sequences.append(test_seq)
-    param_index.seq_names.append("param_test")
-    param_index.seq_lens.append(len(test_seq))
-    
-    # 使用k=15测试不同窗口大小
-    mins_w5 = extract_minimizers(test_seq, k=15, w=10)
-    assert len(mins_w5) > 0, "should be able to extract minimizer (k=15,w=10)"
-    
-    mins_w10 = extract_minimizers(test_seq, k=15, w=10)
-    assert len(mins_w10) > 0, "should be able to extract minimizer (k=15,w=10)"
-    print("minimizer extraction test passed")
-
-    # 9. Test file operation error handling
-    print("\n9. Test file operation error handling:")
-    try:
-        # try to load a non-existent file
-        error_index = init_index()
-        error_index.load_index("nonexistent.txt")
-        assert False, "should raise an exception"
-    except:
-        print("file operation error handling test passed")
-
-    print("\nall enhanced tests passed!")
 
 if __name__ == "__main__":
-    test_index()
-
-# # test the whole process
-# if __name__ == "__main__":
-#     k = 3
-#     w = 5
-    
-#     index = init_index()
-#     print("the initialized index structure:")
-#     print(f"Sequences: {index.sequences}")
-#     print(f"Sequence Names: {index.seq_names}")
-#     print(f"Sequence Lengths: {index.seq_lens}")
-#     print(f"Minimizer Index: {index.minimizer_index}")
-
-#     # simulate adding sequences
-#     index.sequences.append(seq("AGCATACATAGCATAAAAAA"))
-#     index.seq_names.append("ref1")
-#     index.seq_lens.append(len(index.sequences[-1]))
-
-#     index.sequences.append(seq("CGTACGTAGCATGCTAGCTA"))
-#     index.seq_names.append("ref2")
-#     index.seq_lens.append(len(index.sequences[-1]))
-
-#     # create a mapping from sequence names to sequence IDs
-#     name_to_id = index.index_names()
-#     print("the mapping from sequence names to sequence IDs:", name_to_id)
-
-#     # extract and add minimizers to the index
-#     for seq_id, seq_obj in enumerate(index.sequences):
-#         mins = extract_minimizers(seq_obj, 3, 5)
-#         for pos, min_kmer in mins:
-#             if min_kmer not in index.minimizer_index:
-#                 index.minimizer_index[min_kmer] = []
-#             index.minimizer_index[min_kmer].append((seq_id, pos))
-
-#     # print the updated index structure
-#     print("the updated index structure:")
-#     print(f"Sequences: {index.sequences}")
-#     print(f"Sequence Names: {index.seq_names}")
-#     print(f"Sequence Lengths: {index.seq_lens}")
-#     print(f"Minimizer Index: {index.minimizer_index}")
-
-#     # save the sequences to a fasta file
-#     with open("sequences.fasta", 'w') as fasta_file:
-#         for name, sequence in zip(index.seq_names, index.sequences):
-#             fasta_file.write(f">{name}\n")
-#             fasta_file.write(f"{sequence}\n")
-
-#     # save the index to a file
-#     index.save_index("minimap2_index.txt", k, w)
-
-#     # load the index from a file
-#     loaded_index = init_index()
-#     loaded_index.load_index("minimap2_index.txt")
-
-#     # print the loaded index structure
-#     print("the loaded index structure:")
-#     print(f"Sequences: {loaded_index.sequences}")
-#     print(f"Sequence Names: {loaded_index.seq_names}")
-#     print(f"Sequence Lengths: {loaded_index.seq_lens}")
-#     print(f"Minimizer Index: {loaded_index.minimizer_index}")
+    # test_index_operations()
+    test_query()
