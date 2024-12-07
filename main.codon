@@ -4,7 +4,7 @@ from sketch_with_hash import extract_minimizers
 from index_with_seq import Index, init_index
 from utils_with_seq import read_fasta, read_fastq, revcomp 
 from chain import Chain
-
+from align import Aligner
 # TODO
 
 # from align import Aligner
@@ -128,6 +128,50 @@ Options:
 #                 # output PAF format
 #                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
 
+def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment):
+    """
+    Write alignment results to a PAF file.
+    """
+
+    
+    query_length = len(query_seq)
+    ref_length = len(ref_seq)
+    query_start, query_end = alignment['query_start'], alignment['query_end']
+    ref_start, ref_end = alignment['ref_start'], alignment['ref_end']
+    matches = alignment['matches']
+    block_length = alignment['block_length']
+    mapping_quality = 255  # Default value; adjust as needed.
+
+    strand = "+"  # Assuming forward strand for simplicity.
+
+    print(f"Alignment dict: {alignment}")
+    print(f"Alignment values: {list(alignment.values())}")
+
+    for key, value in alignment.items():
+        if not isinstance(value, int):
+            raise TypeError(f"Expected int for {key}, got {type(value)}")
+
+    # Construct PAF line
+    paf_line = [
+        str(query_name),
+        str(query_length),
+        str(query_start),
+        str(query_end),
+        strand,
+        str(ref_name),
+        str(ref_length),
+        str(ref_start),
+        str(ref_end),
+        str(matches),
+        str(block_length),
+        str(mapping_quality)
+    ]
+
+    # Write to file
+    with open(output_file, "a") as f:
+        f.write("\t".join(map(str, paf_line)) + "\n")
+
+
 def test_with_genome():
     """
     test the whole process with real genome data:
@@ -222,6 +266,34 @@ def test_with_genome():
     print(f"Max score: {max_score}")
 
     print("\n=== test passed ===")
+
+    print("\nTest alignment")
+    aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=50)
+
+    # Assuming one reference sequence
+    ref_header = header
+    ref_seq = genome
+
+    # Perform alignment
+    alignment_results = []
+    for query_start, ref_start, _ in optimal_chain:
+        # Use part of the reference sequence for alignment
+        sub_ref = ref_seq[ref_start:ref_start+len(query_seq)]
+        score, pos = aligner.banded_smith_waterman(sub_ref, query_seq)
+
+        alignment_results.append({
+            'query_start': query_start,
+            'query_end': query_start + len(query_seq),  # Adjust based on real alignment
+            'ref_start': ref_start,
+            'ref_end': ref_start + len(sub_ref),  # Adjust based on real alignment
+            'matches': score,  # Assuming the score represents matches (adjust if needed)
+            'block_length': len(query_seq)  # Full query length (adjust if needed)
+        })
+
+    output_file = "output.paf"
+    for alignment in alignment_results:
+        write_to_paf(output_file, "query1", query_seq, ref_header, ref_seq, alignment)
+
     
 if __name__ == "__main__":
     # main()

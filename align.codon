@@ -1,0 +1,63 @@
+class Aligner:
+    """
+    Class for sequence alignment
+    """
+    match: int = 2
+    mismatch: int = -1
+    gap_open: int = -2
+    gap_extend: int = -1
+    band_width: int = 5
+    def __init__(self, match, mismatch, gap_open, gap_extend, band_width):
+        self.match = match
+        self.mismatch = mismatch
+        self.gap_open = gap_open
+        self.gap_extend = gap_extend
+        self.band_width = band_width
+
+    
+    def banded_smith_waterman(self, ref, query):
+        m = len(ref)
+        n = len(query)
+        dp = [[0 for _ in range(n + 1)] for _ in range(m + 1)]
+        max_score = 0
+        max_pos = (0,0)
+
+        for i in range(1, m +1):
+            for j in range(max(1, i - self.band_width), min(n+1, i + self.band_width + 1)):
+                if i <= 0 or j <= 0:
+                    continue
+
+                match_score = dp[i - 1][j - 1] + (self.match if ref[i - 1] == query[j - 1] else self.mismatch)
+                gap_ref = dp[i - 1][j] + (self.gap_open if dp[i - 1][j] == 0 else self.gap_extend)
+                gap_query = dp[i][j - 1] + (self.gap_open if dp[i][j - 1] == 0 else self.gap_extend)
+
+                dp[i][j] = max(0, match_score, gap_ref, gap_query)
+
+                if dp[i][j] > max_score:
+                    max_score = dp[i][j]
+                    max_pos = (i,j)
+
+        return max_score, max_pos
+
+
+
+# def test_alignment():
+#     #Test 1. Simple alignment
+#     # Test 1: Perfect match
+#     ref = "ACTGACTGACTG"
+#     query = "ACTGACTG"
+#     aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=5)
+#     score, pos = aligner.banded_smith_waterman(ref, query)
+#     print("Test 1: Perfect match")
+#     print(f"Score: {score}")
+#     print(f"Position: {pos}\n")
+
+#     # Test 2: Single mismatch
+#     ref = "ACTGACTGACTG"
+#     query = "ACTTACTG"
+#     score, pos = aligner.banded_smith_waterman(ref, query)
+#     print("Test 2: Single mismatch")
+#     print(f"Score: {score}")
+#     print(f"Position: {pos}\n")   
+
+# test_alignment()
