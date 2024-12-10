@@ -6,13 +6,11 @@ from utils_with_seq import read_fasta, read_fastq, revcomp
 from chain import Chain
 from align import Aligner
 
-# TODO
 
-# from align import Aligner
 
 """
 Main function for minimap2 implementation
-Usage: codon main.codon [options] <ref.fa> <query.fq> > approx-mapping.paf
+Usage: codon run -plugin seq main.codon [options] <ref.fa> <query.fq> > approx-mapping.paf
 
 Options:
   -m INT      mininum chaining score
@@ -130,24 +128,22 @@ Options:
 #                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
 
 
-def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment):
+def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality):
     """
     Write alignment results to a PAF file.
     """
-
-    
     query_length = len(query_seq)
     ref_length = len(ref_seq)
     query_start, query_end = alignment['query_start'], alignment['query_end']
     ref_start, ref_end = alignment['ref_start'], alignment['ref_end']
     matches = alignment['matches']
     block_length = alignment['block_length']
-    mapping_quality = 255  # Default value
 
-    strand = "+"  #Need to add stuff for determining relative strand
 
-    print(f"Alignment dict: {alignment}")
-    print(f"Alignment values: {list(alignment.values())}")
+    #strand = "+"
+
+    # print(f"Alignment dict: {alignment}")
+    # print(f"Alignment values: {list(alignment.values())}")
 
     for key, value in alignment.items():
         if not isinstance(value, int):
@@ -276,10 +272,20 @@ def test_with_genome():
     ref_header = header
     ref_seq = genome
 
+
     alignment_results = []
+    strand = "+"  
+
     for query_start, ref_start, _ in optimal_chain:
         sub_ref = ref_seq[ref_start:ref_start+len(query_seq)]
         score, pos = aligner.banded_smith_waterman(sub_ref, query_seq)
+
+        #Default strand is +, if revcomp score > score, strand is -
+        strand = "+"
+        rev = ~(sub_ref)
+        rev_score, _ = aligner.banded_smith_waterman(rev, query_seq)
+        if score < rev_score: 
+            strand = "-"
 
         alignment_results.append({
             'query_start': query_start,
@@ -290,9 +296,25 @@ def test_with_genome():
             'block_length': len(query_seq)  
         })
 
+        #* Implement scoring system for mapping quality.
+        # best_score = float('-inf')
+        # second_best_score = float('-inf')
+        # for alignment in alignment_results:
+        #     print(best_score)
+        #     if best_score > 0:
+        #         if second_best_score > float('-inf'):
+        #             print(second_best_score)
+        #             mapping_quality = int(255 * (1 - (second_best_score / best_score)))
+        #         else:
+        #             mapping_quality = 255  # No second-best score
+        #     else:
+        #         mapping_quality = 0  # No meaningful alignment
+
+    mapping_quality = 255
     output_file = "output.paf"
     for alignment in alignment_results:
-        write_to_paf(output_file, "query1", query_seq, ref_header, ref_seq, alignment)
+        write_to_paf(output_file, "query1", query_seq, ref_header, ref_seq, alignment, strand, mapping_quality)
+
     
 if __name__ == "__main__":
     # main()
