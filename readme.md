@@ -11,4 +11,6 @@ bioinformatics/
 ├── index_with_seq.codon   # Index building and searching  
 ├── chain.codon           # Chaining algorithm  
 ├── utils_with_seq.codon   # Utility functions (FASTA/FASTQ readers)  
+├── align.codon           # Alignment algorithm
 └── readme.md             # Project documentation
+
