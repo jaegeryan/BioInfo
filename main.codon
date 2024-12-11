@@ -127,7 +127,7 @@ Options:
 #                 # output PAF format
 #                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
 
-
+#Write to paf function
 def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality):
     """
     Write alignment results to a PAF file.
@@ -167,6 +167,83 @@ def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignmen
 
     with open(output_file, "a") as f:
         f.write("\t".join(map(str, paf_line)) + "\n")
+
+
+#main
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: main.codon <reference.fa> <reads.fastq>", file=sys.stderr)
+        sys.exit(1)
+
+    
+    ref_file = sys.argv[1]
+    reads_file = sys.argv[2]
+    output_file = sys.stdout
+
+        # 1. Load reference genome
+    sequences = read_fasta(ref_file)
+    ref_header, ref_genome = next(sequences)
+    print(f"Loaded reference genome: {ref_header}, length: {len(ref_genome)}", file=sys.stderr)
+
+        # 2. Build reference index
+    minimizers = extract_minimizers(ref_genome, k=15, w=10)
+    index = init_index()
+    for pos, min_kmer in minimizers:
+        if min_kmer not in index.minimizer_index:
+            index.minimizer_index[min_kmer] = []
+        index.minimizer_index[min_kmer].append((0, pos))
+    print(f"Built index with {len(index.minimizer_index)} minimizers.", file=sys.stderr)
+
+
+    print(f"Processing reads from {reads_file}...", file=sys.stderr)
+    for read_header, read_seq in read_fastq(reads_file):
+        query_mins = extract_minimizers(read_seq, k=15, w=10)
+        matches = []
+        for query_pos, min_kmer in query_mins:
+            if min_kmer in index.minimizer_index:
+                for ref_seq_idx, ref_pos in index.minimizer_index[min_kmer]:
+                    matches.append((query_pos, ref_pos, 1))
+
+
+        chain = Chain(min_score=1, max_distance=3)
+        optimal_chain, max_score = chain.chain_anchors(matches)
+
+        aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=50)
+        for query_start, ref_start, _ in optimal_chain:
+            sub_ref = ref_genome[ref_start:ref_start+len(read_seq)]
+            score, _ = aligner.banded_smith_waterman(sub_ref, read_seq)
+
+            # Determine strand (+/- based on alignment score)
+            strand = "+"
+            rev = ~(sub_ref)
+            rev_score, _ = aligner.banded_smith_waterman(rev, read_seq)
+            if rev_score > score:
+                strand = "-" 
+
+            # Write PAF output using write_to_paf
+            alignment = {
+                'query_start': query_start,
+                'query_end': query_start + len(read_seq),
+                'ref_start': ref_start,
+                'ref_end': ref_start + len(sub_ref),
+                'matches': score,
+                'block_length': len(read_seq)
+            }
+
+            write_to_paf(
+                output_file,
+                query_name=read_header,
+                query_seq=read_seq,
+                ref_name=ref_header,
+                ref_seq=ref_genome,
+                alignment=alignment,
+                strand=strand,
+                mapping_quality=255
+            )
+
+
+
+
 
 
 def test_with_genome():
