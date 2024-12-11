@@ -172,7 +172,7 @@ def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignmen
 #main
 def main():
     if len(sys.argv) < 3:
-        print("Usage: main.codon <reference.fa> <reads.fastq>", file=sys.stderr)
+        print("Usage: main.codon <reference.fa> <reads.fastq> < <output.paf>", file=sys.stderr)
         sys.exit(1)
 
     
