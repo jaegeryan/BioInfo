@@ -11,11 +11,6 @@ from align import Aligner
 """
 Main function for minimap2 implementation
 Usage: codon run -plugin seq main.codon [options] <ref.fa> <query.fq> > approx-mapping.paf
-
-Options:
-  -m INT      mininum chaining score
-  -k INT      k-mer length # this cannot be implemented as Static[int]
-  -w INT      minimizer window length # this cannot be implemented as Static[int]
 """
 
 # def parse_args():
@@ -257,10 +252,13 @@ def test_with_genome():
     print("=== start genome test ===")
     
     # 1. read sacCer3.fa
-    print("\n1. read sacCer3.fa")
-    sequences = read_fasta("sacCer3.fa")
+    print("\n1. read MT-human.fa")
+    sequences = read_fasta("MT-human.fa")
     # print("\n1. read genome.fa")
     # sequences = read_fasta("genome.fa")
+    print("\n1. read MT-Orang.fa")
+    sequences = read_fasta("MT-Orang.fa")
+    
     header, genome = next(sequences)  # get the first sequence
     
     print(f"genome information:")

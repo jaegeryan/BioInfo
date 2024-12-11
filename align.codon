@@ -1,3 +1,4 @@
+from bio import *
 class Aligner:
     """
     Class for sequence alignment
@@ -21,7 +22,7 @@ class Aligner:
         dp = [[0 for _ in range(n + 1)] for _ in range(m + 1)]
         max_score = 0
         max_pos = (0,0)
-
+        
 
         for i in range(1, m +1):
             for j in range(max(1, i - self.band_width), min(n+1, i + self.band_width + 1)):
@@ -31,6 +32,12 @@ class Aligner:
                 match_score = dp[i - 1][j - 1] + (self.match if ref[i - 1] == query[j - 1] else self.mismatch)
                 gap_ref = dp[i - 1][j] + (self.gap_open if dp[i - 1][j] == 0 else self.gap_extend)
                 gap_query = dp[i][j - 1] + (self.gap_open if dp[i][j - 1] == 0 else self.gap_extend)
+                
+                # CIGAR operation, use the example from Seq cookbook
+                # ref_seq = seq(ref) # work with seq object, and has been tested with the test_alignment()
+                # query_seq = seq(query) # work with seq object, and has been tested with the test_alignment()
+                # cigar = ref_seq.align(query_seq, a=2, b=4, gapo=4, gape=2, gapo2=13, gape2=1) # work with seq object, and has been tested with the test_alignment()
+                cigar = ref.align(query, a=2, b=4, gapo=4, gape=2, gapo2=13, gape2=1)
 
                 dp[i][j] = max(0, match_score, gap_ref, gap_query)
 
@@ -38,39 +45,37 @@ class Aligner:
                     max_score = dp[i][j]
                     max_pos = (i,j)
 
-        return max_score, max_pos
+        return max_score, max_pos, cigar
     
 
     # def rev_comp(self, seq):
     #     complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
     #     return ''.join(complement[base] for base in reversed(seq))
     
+    
 
 
 
 
 # def test_alignment():
-#     # Test 1. Simple alignment
+#     # Test 1: Simple alignment
 #     ref = "ACTGACTGACTG"
 #     query = "ACTGACTG"
 #     aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=5)
-#     score, pos, rev = aligner.banded_smith_waterman(ref, query)
+    
+#     score, pos, cigar = aligner.banded_smith_waterman(ref, query)
 #     print("Test 1: Perfect match")
 #     print(f"Score: {score}")
-#     print(f"Position: {pos}\n")
-#     print(f"Ref: {ref}, Ref len: {len(ref)}")
-#     print(f"Rev: {rev}, len subref: {len(rev)}")
-#     score_rev, _, _ = aligner.banded_smith_waterman(rev, query)
-#     print(score_rev)
-#     print(f"Type of ref: {type(ref)}")
-    
+#     print(f"Position: {pos}")
+#     print(f"CIGAR: {cigar}\n")
 
-    # Test 2: Single mismatch
-    # ref = "ACTGACTGACTG"
-    # query = "ACTTACTG"
-    # score, pos = aligner.banded_smith_waterman(ref, query)
-    # print("Test 2: Single mismatch")
-    # print(f"Score: {score}")
-    # print(f"Position: {pos}\n")   
+#     # Test 2: Single mismatch
+#     ref = "ACTGACTGACTG"
+#     query = "ACTTACTG"
+#     score, pos, cigar = aligner.banded_smith_waterman(ref, query)
+#     print("Test 2: Single mismatch")
+#     print(f"Score: {score}")
+#     print(f"Position: {pos}")
+#     print(f"CIGAR: {cigar}\n")
 
 # test_alignment()
