@@ -171,52 +171,56 @@ def calculate_mapping_quality(score, max_score, num_alignments):
 #main
 def main():
     if len(sys.argv) < 3:
-        print("Usage: main.codon <reference.fa> <reads.fastq> > <output.paf>", file=sys.stderr)
-        #Need to remove the print statements in the various files as it outputs those to the paf file as well. 
+        print("Usage: main.codon <reference.fa> <reads.fasta> > <output.paf>", file=sys.stderr)
         sys.exit(1)
-
     
     ref_file = sys.argv[1]
     reads_file = sys.argv[2]
     output_file = sys.stdout
 
-        # 1. Load reference genome
+    # 1. Load reference genome
     sequences = read_fasta(ref_file)
     ref_header, ref_genome = next(sequences)
     print(f"Loaded reference genome: {ref_header}, length: {len(ref_genome)}", file=sys.stderr)
 
-        # 2. Build reference index
-    minimizers = extract_minimizers(ref_genome, k=15, w=10)
-    index = init_index()
-    for pos, min_kmer in minimizers:
-        if min_kmer not in index.minimizer_index:
-            index.minimizer_index[min_kmer] = []
-        index.minimizer_index[min_kmer].append((0, pos))
-    print(f"Built index with {len(index.minimizer_index)} minimizers.", file=sys.stderr)
+    # 2. Initialize Index and Build Minimizer Index
+    index = Index()
+    index.add_sequence(ref_genome, ref_header)  # Add the reference genome to the index
 
-
+    # 3. Process Reads
     print(f"Processing reads from {reads_file}...", file=sys.stderr)
-    for read_header, read_seq in read_fastq(reads_file):
-        query_mins = extract_minimizers(read_seq, k=15, w=10)
-        matches = []
-        for query_pos, min_kmer in query_mins:
-            if min_kmer in index.minimizer_index:
-                for ref_seq_idx, ref_pos in index.minimizer_index[min_kmer]:
-                    matches.append((query_pos, ref_pos, 1))
+    for read_header, read_seq in read_fasta(reads_file):
+        matches = index.query_sequence(read_seq)  
+        # print(matches)
+        # print(f"{len(matches)}")
 
+        if len(matches) == 0:
+            print(f"No matches found for {read_header}", file=sys.stderr)
+            continue
 
-        chain = Chain(min_score=1, max_distance=3)
+        print(f"Chaining matches for {read_header}...", file=sys.stderr)
+        chain = Chain(min_score=25, max_distance=1000)
+
         optimal_chain, max_score = chain.chain_anchors(matches)
+        print(f"{len(optimal_chain)}")
 
+        print(f"Aligning with banded Smith-Waterman...")
         aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=50)
         alignment_results = []
         mapping_scores = []
         strand_values = []
         cig_values = []
-        strand = "+" 
+
         for query_start, ref_start, _ in optimal_chain:
-            sub_ref = ref_genome[ref_start:ref_start+len(read_seq)]
+            print("aaa")
+            sub_ref = ref_genome[ref_start:ref_start + len(read_seq)]
+            print(f"{len(sub_ref)}")
+            print(f"{len(read_seq)}")
+            # print(read_seq)
+            print(sub_ref)
+            ##* Issue is here
             score, pos, cigar = aligner.banded_smith_waterman(sub_ref, read_seq)
+            print("bbb")
             cig = str(cigar)
 
             # Determine strand (+/- based on alignment score)
@@ -224,7 +228,7 @@ def main():
             rev = ~(sub_ref)
             rev_score, _, revcigar = aligner.banded_smith_waterman(rev, read_seq)
             if rev_score > score:
-                strand = "-" 
+                strand = "-"
                 revcig = str(revcigar)
                 cig = revcig
 
@@ -234,7 +238,6 @@ def main():
             strand_values.append(strand)
             cig_values.append(cig)
 
-                # Write PAF output using write_to_paf
             alignment_results.append({
                 'query_start': query_start,
                 'query_end': query_start + len(read_seq), 
@@ -244,12 +247,8 @@ def main():
                 'block_length': len(read_seq)
             })
 
-        for i in range (len(alignment_results)):
+        for i in range(len(alignment_results)):
             write_to_paf(output_file, read_header, read_seq, ref_header, ref_genome, alignment_results[i], strand_values[i], mapping_scores[i], cig_values[i])
-
-
-
-
 
 
 def test_with_genome():
@@ -331,12 +330,15 @@ def test_with_genome():
 
     #Find matches
     matches = []
+    weight = 1
+    threshold = 50
     for query_pos, min_kmer in query_mins:
         if min_kmer in index.minimizer_index:
             for ref_seq_idx, ref_pos in index.minimizer_index[min_kmer]:
-                matches.append((query_pos, ref_pos, 1))  
-                # Think a scoring system may need to be added. 1 is just a placeholder for now
-
+                distance = abs(query_pos - ref_pos)
+                if distance < threshold:  # Example of filtering
+                    weight = max(1, 10 - distance)  # Higher weight for closer matches
+                matches.append((query_pos, ref_pos, weight))
 
     
     print(f"found matches: {len(matches)}")
@@ -404,4 +406,4 @@ def test_with_genome():
     
 if __name__ == "__main__":
     main()
-    # test_with_genome()
+   #test_with_genome()
