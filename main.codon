@@ -123,7 +123,7 @@ Usage: codon run -plugin seq main.codon [options] <ref.fa> <query.fq> > approx-m
 #                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
 
 #Write to paf function
-def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality):
+def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality, cigar):
     """
     Write alignment results to a PAF file.
     """
@@ -134,12 +134,7 @@ def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignmen
     matches = alignment['matches']
     block_length = alignment['block_length']
 
-
-    #strand = "+"
-
-    # print(f"Alignment dict: {alignment}")
-    # print(f"Alignment values: {list(alignment.values())}")
-
+    # Ensure all alignment values are integers
     for key, value in alignment.items():
         if not isinstance(value, int):
             raise TypeError(f"Expected int for {key}, got {type(value)}")
@@ -157,17 +152,27 @@ def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignmen
         str(ref_end),
         str(matches),
         str(block_length),
-        str(mapping_quality)
+        str(mapping_quality),
+        cigar  
     ]
 
-    with open(output_file, "a") as f:
-        f.write("\t".join(map(str, paf_line)) + "\n")
+    if isinstance(output_file, str):
+        with open(output_file, "a") as f:
+            f.write("\t".join(paf_line) + "\n")
+    else:
+        output_file.write("\t".join(paf_line) + "\n")
 
+
+def calculate_mapping_quality(score, max_score, num_alignments):
+    if num_alignments > 1:
+        return max(0, int(255 - (10 * num_alignments))) 
+    return min(255, int(score / max_score * 255)) 
 
 #main
 def main():
     if len(sys.argv) < 3:
-        print("Usage: main.codon <reference.fa> <reads.fastq> < <output.paf>", file=sys.stderr)
+        print("Usage: main.codon <reference.fa> <reads.fastq> > <output.paf>", file=sys.stderr)
+        #Need to remove the print statements in the various files as it outputs those to the paf file as well. 
         sys.exit(1)
 
     
@@ -204,37 +209,43 @@ def main():
         optimal_chain, max_score = chain.chain_anchors(matches)
 
         aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=50)
+        alignment_results = []
+        mapping_scores = []
+        strand_values = []
+        cig_values = []
+        strand = "+" 
         for query_start, ref_start, _ in optimal_chain:
             sub_ref = ref_genome[ref_start:ref_start+len(read_seq)]
-            score, _ = aligner.banded_smith_waterman(sub_ref, read_seq)
+            score, pos, cigar = aligner.banded_smith_waterman(sub_ref, read_seq)
+            cig = str(cigar)
 
             # Determine strand (+/- based on alignment score)
             strand = "+"
             rev = ~(sub_ref)
-            rev_score, _ = aligner.banded_smith_waterman(rev, read_seq)
+            rev_score, _, revcigar = aligner.banded_smith_waterman(rev, read_seq)
             if rev_score > score:
                 strand = "-" 
+                revcig = str(revcigar)
+                cig = revcig
 
-            # Write PAF output using write_to_paf
-            alignment = {
+            num_alignments = len(matches)
+            mapping_quality = calculate_mapping_quality(score, max_score, num_alignments)
+            mapping_scores.append(mapping_quality)
+            strand_values.append(strand)
+            cig_values.append(cig)
+
+                # Write PAF output using write_to_paf
+            alignment_results.append({
                 'query_start': query_start,
-                'query_end': query_start + len(read_seq),
+                'query_end': query_start + len(read_seq), 
                 'ref_start': ref_start,
-                'ref_end': ref_start + len(sub_ref),
-                'matches': score,
+                'ref_end': ref_start + len(sub_ref),  
+                'matches': score, 
                 'block_length': len(read_seq)
-            }
+            })
 
-            write_to_paf(
-                output_file,
-                query_name=read_header,
-                query_seq=read_seq,
-                ref_name=ref_header,
-                ref_seq=ref_genome,
-                alignment=alignment,
-                strand=strand,
-                mapping_quality=255
-            )
+        for i in range (len(alignment_results)):
+            write_to_paf(output_file, read_header, read_seq, ref_header, ref_genome, alignment_results[i], strand_values[i], mapping_scores[i], cig_values[i])
 
 
 
@@ -256,8 +267,8 @@ def test_with_genome():
     sequences = read_fasta("MT-human.fa")
     # print("\n1. read genome.fa")
     # sequences = read_fasta("genome.fa")
-    print("\n1. read MT-Orang.fa")
-    sequences = read_fasta("MT-Orang.fa")
+    # print("\n1. read MT-Orang.fa")
+    # sequences = read_fasta("MT-Orang.fa")
     
     header, genome = next(sequences)  # get the first sequence
     
@@ -349,18 +360,32 @@ def test_with_genome():
 
 
     alignment_results = []
+    mapping_scores = []
+    strand_values = []
+    cig_values = []
     strand = "+"  
 
     for query_start, ref_start, _ in optimal_chain:
         sub_ref = ref_seq[ref_start:ref_start+len(query_seq)]
-        score, pos = aligner.banded_smith_waterman(sub_ref, query_seq)
+        score, pos, cigar = aligner.banded_smith_waterman(sub_ref, query_seq)
+        cig = str(cigar)
+        #print(cig)
+        
 
         #Default strand is +, if revcomp score > score, strand is -
         strand = "+"
         rev = ~(sub_ref)
-        rev_score, _ = aligner.banded_smith_waterman(rev, query_seq)
+        rev_score, _, revcigar = aligner.banded_smith_waterman(rev, query_seq)
         if score < rev_score: 
             strand = "-"
+            revcig = str(revcigar)
+            cig = revcig
+        
+        num_alignments = len(matches)
+        mapping_quality = calculate_mapping_quality(score, max_score, num_alignments)
+        mapping_scores.append(mapping_quality)
+        strand_values.append(strand)
+        cig_values.append(cig)
 
         alignment_results.append({
             'query_start': query_start,
@@ -368,29 +393,15 @@ def test_with_genome():
             'ref_start': ref_start,
             'ref_end': ref_start + len(sub_ref),  
             'matches': score, 
-            'block_length': len(query_seq)  
+            'block_length': len(query_seq)
         })
 
-        #* Implement scoring system for mapping quality.
-        # best_score = float('-inf')
-        # second_best_score = float('-inf')
-        # for alignment in alignment_results:
-        #     print(best_score)
-        #     if best_score > 0:
-        #         if second_best_score > float('-inf'):
-        #             print(second_best_score)
-        #             mapping_quality = int(255 * (1 - (second_best_score / best_score)))
-        #         else:
-        #             mapping_quality = 255  # No second-best score
-        #     else:
-        #         mapping_quality = 0  # No meaningful alignment
 
-    mapping_quality = 255
     output_file = "output.paf"
-    for alignment in alignment_results:
-        write_to_paf(output_file, "query1", query_seq, ref_header, ref_seq, alignment, strand, mapping_quality)
+    for i in range (len(alignment_results)):
+        write_to_paf(output_file, "query1", query_seq, ref_header, ref_seq, alignment_results[i], strand_values[i], mapping_scores[i], cig_values[i])
 
     
 if __name__ == "__main__":
-    # main()
-    test_with_genome()
+    main()
+    # test_with_genome()
