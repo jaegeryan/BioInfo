@@ -81,8 +81,6 @@ def main():
     print(f"Processing reads from {reads_file}...", file=sys.stderr)
     for read_header, read_seq in read_fasta(reads_file):
         matches = index.query_sequence(read_seq)  
-        print(matches)
-        print(f"{len(matches)}")
 
         if len(matches) == 0:
             print(f"No matches found for {read_header}", file=sys.stderr)
@@ -92,7 +90,6 @@ def main():
         chain = Chain(min_score=30, max_distance=10, min_gap=10)
 
         optimal_chain, max_score = chain.chain_anchors(matches)
-        print(f"{len(optimal_chain)}")
 
         print(f"Aligning with banded Smith-Waterman...")
         aligner = Aligner(match=2, mismatch=-1, gap_open=-2, gap_extend=-1, band_width=50)
@@ -101,7 +98,7 @@ def main():
         strand_values = []
         # cig_values = []
 
-        #for query_start, ref_start, _ in optimal_chain[:10]: #Test as full length takes too long
+        # for query_start, ref_start, _ in optimal_chain[:100]: #Full length works but takes an insanely long time
         for query_start, ref_start, _ in optimal_chain:
             sub_ref = ref_genome[ref_start:ref_start + len(read_seq)]
             score, _= aligner.banded_smith_waterman(sub_ref, read_seq)
@@ -110,7 +107,6 @@ def main():
             strand = "+"
             rev = ~(sub_ref)
             rev_score, _, = aligner.banded_smith_waterman(rev, read_seq)
-            print(rev_score)
             if rev_score > score:
                 strand = "-"
 
