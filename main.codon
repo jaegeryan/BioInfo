@@ -10,7 +10,7 @@ from align import Aligner
 
 """
 Main function for minimap2 implementation
-Usage: codon run -plugin seq main.codon <ref.fa> <query.fa> > approx-mapping.paf
+Usage: codon run -plugin seq main.codon <ref.fa> <query.fa> <output.paf>
 """
 
 
