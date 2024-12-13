@@ -1,9 +1,11 @@
 class Chain:
     min_score:int
     max_distance:int
-    def __init__(self, min_score, max_distance):
+    min_gap:int
+    def __init__(self, min_score, max_distance, min_gap):
         self.min_score = min_score
         self.max_distance = max_distance
+        self.min_gap = min_gap
 
     def concave_gap_cost(self, gap):
         if gap <= 0:
@@ -15,23 +17,20 @@ class Chain:
 
     def chain_anchors(self, matches):
         # Filter and sort matches
-        matches = [match for match in matches if match[2] >= self.min_score]
+        # matches = [match for match in matches if match[2] >= self.min_score]
+        matches = [match for match in matches if match[2] >= self.min_score and (match[0] - matches[0][1]) > self.min_gap]
         matches.sort(key=lambda x: x[0])
 
         n = len(matches)
-        dp = [0.0] * n  # dp[i] stores the best score ending at matches[i]
-        backtrack = [-1] * n  # backtrack[i] stores the previous match in the optimal chain
-
+        print(n)
+        dp = [0.0] * n  
+        backtrack = [-1] * n  
 
         window = []
 
-        # Initialize DP with individual match scores
-        # print("Initializing DP with individual match scores")
         for i in range(n):
             start_i, end_i, score_i = matches[i]
             dp[i] = score_i  # Starting score is the match score
-            # print(f"dp[{i}] = {dp[i]} (match: {matches[i]})")
-
  
             while window and matches[window[0]][1] < start_i - self.max_distance:
                 window.pop(0)
@@ -41,18 +40,12 @@ class Chain:
                 gap = start_i - end_j
                 penalty = self.concave_gap_cost(gap)
                 potential_score = dp[j] + score_i - penalty
-                # print(f"i = {i}, j = {j}, gap = {gap}, penalty = {penalty}, potential_score = {potential_score}")
-
 
                 if potential_score > dp[i]:
                     dp[i] = potential_score
                     backtrack[i] = j
 
             window.append(i)
-
-        #Debug
-        # print(f"DP table after processing: {dp}")
-        # print(f"Backtrack table: {backtrack}")
 
         if n == 0:
             print("No matches available for chaining.")
