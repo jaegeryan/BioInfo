@@ -10,120 +10,11 @@ from align import Aligner
 
 """
 Main function for minimap2 implementation
-Usage: codon run -plugin seq main.codon [options] <ref.fa> <query.fq> > approx-mapping.paf
+Usage: codon run -plugin seq main.codon <ref.fa> <query.fa> > approx-mapping.paf
 """
 
-# def parse_args():
-#     # default parameters
-#     params = {
-#         'preset': None,
-#         'min_cnt': None,
-#         'min_chain_score': None,
-#         'k': 15,
-#         'w': 10,
-#         'bw': None,
-#         'out_cs': False,
-#         'out_MD': False
-#     }
-    
-#     args = sys.argv[1:]
-#     i = 0
-#     while i < len(args):
-#         if args[i].startswith('-'):
-#             if args[i] == '-x':
-#                 params['preset'] = args[i+1]
-#                 i += 2
-#             elif args[i] == '-n':
-#                 params['min_cnt'] = int(args[i+1])
-#                 i += 2
-#             elif args[i] == '-m':
-#                 params['min_chain_score'] = int(args[i+1])
-#                 i += 2
-#             elif args[i] == '-k':
-#                 params['k'] = int(args[i+1])
-#                 i += 2
-#             elif args[i] == '-w':
-#                 params['w'] = int(args[i+1])
-#                 i += 2
-#             elif args[i] == '-r':
-#                 params['bw'] = int(args[i+1])
-#                 i += 2
-#             elif args[i] == '-c':
-#                 params['out_cs'] = True
-#                 i += 1
-#             elif args[i] == '-M':
-#                 params['out_MD'] = True
-#                 i += 1
-#         else:
-#             break
-    
-#     # check if the number of input files is correct
-#     if len(args[i:]) != 2:
-#         print(__doc__)
-#         sys.exit(1)
-    
-#     return params, args[i], args[i+1]
 
-# def get_preset_params(preset: str) -> dict:
-#     """Return preset parameters"""
-#     if preset == "sr":  # short read
-#         return {'k': 15, 'w': 10, 'min_chain_score': 40}
-#     elif preset == "map-pb":  # PacBio reads
-#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
-#     elif preset == "map-ont":  # Oxford Nanopore reads
-#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
-#     elif preset == "asm5":  # asm-to-ref mapping, divergence <= 5%
-#         return {'k': 19, 'w': 10, 'min_chain_score': 50}
-#     elif preset == "asm10":  # asm-to-ref mapping, divergence <= 10%
-#         return {'k': 19, 'w': 10, 'min_chain_score': 50}
-#     elif preset == "splice":  # long-read spliced alignment
-#         return {'k': 15, 'w': 5, 'min_chain_score': 30}
-#     return {}
 
-# def main():
-#     # parse arguments
-#     params, ref_file, query_file = parse_args()
-    
-#     # if preset is specified, update parameters
-#     if params['preset']:
-#         preset_params = get_preset_params(params['preset'])
-#         params.update(preset_params)
-    
-#     # Read reference sequences
-#     references = read_fasta(ref_file)
-    
-#     # Build index
-#     index = Index(k=params['k'], w=params['w'], 
-#                  min_cnt=params['min_cnt'])
-#     for header, seq in references:
-#         index.build(seq)
-    
-#     # Process queries
-#     queries = read_fastq(query_file)
-    
-#     # Initialize components
-#     chain = Chain(min_score=params['min_chain_score'], max_distance=params['bw'] or 50) #50 is default if not specified
-#     aligner = Aligner(bandwidth=params['bw'])
-    
-#     # Process each query
-#     for qheader, qseq in queries:
-#         # Find matches
-#         matches = index.query(qseq)
-        
-#         # Chain matches
-#         chains = chain.chain_anchors(matches)
-        
-#         # Align and output results
-#         for ref_header, ref_seq in references:
-#             for chain in chains:
-#                 alignment = aligner.align(qseq, ref_seq, chain,
-#                                        out_cs=params['out_cs'],
-#                                        out_MD=params['out_MD'])
-#                 # output PAF format
-#                 print(f"{qheader}\t{len(qseq)}\t{alignment}")
-
-#Write to paf function
-# def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality, cigar):
 def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignment, strand, mapping_quality):
     """
     Write alignment results to a PAF file.
@@ -152,8 +43,7 @@ def write_to_paf(output_file, query_name, query_seq, ref_name, ref_seq, alignmen
         str(ref_end),
         str(matches),
         str(block_length),
-        str(mapping_quality)#,
-        #cigar  
+        str(mapping_quality)
     ]
 
     if isinstance(output_file, str):
@@ -171,7 +61,7 @@ def calculate_mapping_quality(score, max_score, num_alignments):
 #main
 def main():
     if len(sys.argv) < 3:
-        print("Usage: main.codon <reference.fa> <reads.fasta> > <output.paf>", file=sys.stderr)
+        print("Usage: main.codon <reference.fa> <reads.fasta> <output.paf>", file=sys.stderr)
         sys.exit(1)
     
     ref_file = sys.argv[1]
@@ -211,15 +101,10 @@ def main():
         strand_values = []
         # cig_values = []
 
-   #     for query_start, ref_start, _ in optimal_chain[:10]: #Test as full length takes too long
+        #for query_start, ref_start, _ in optimal_chain[:10]: #Test as full length takes too long
         for query_start, ref_start, _ in optimal_chain:
             sub_ref = ref_genome[ref_start:ref_start + len(read_seq)]
-            # score, pos, cigar = aligner.banded_smith_waterman(sub_ref, read_seq)
             score, _= aligner.banded_smith_waterman(sub_ref, read_seq)
-            #print("debug")
-            #print(score)
-
-            # cig = str(cigar)
 
             # Determine strand (+/- based on alignment score)
             strand = "+"
@@ -228,14 +113,11 @@ def main():
             print(rev_score)
             if rev_score > score:
                 strand = "-"
-                # revcig = str(revcigar)
-                # cig = revcig
 
             num_alignments = len(matches)
             mapping_quality = calculate_mapping_quality(score, max_score, num_alignments)
             mapping_scores.append(mapping_quality)
             strand_values.append(strand)
-            # cig_values.append(cig)
 
             alignment_results.append({
                 'query_start': query_start,
@@ -249,7 +131,6 @@ def main():
         output_file = "output.paf"
         for i in range(len(alignment_results)):
             write_to_paf(output_file, read_header, read_seq, ref_header, ref_genome, alignment_results[i], strand_values[i], mapping_scores[i])
-            # write_to_paf(output_file, read_header, read_seq, ref_header, ref_genome, alignment_results[i], strand_values[i], mapping_scores[i], cig_values[i])
 
 
 
